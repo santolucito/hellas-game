@@ -434,25 +434,32 @@ export function executeAction(state: GameState, action: GameAction): GameState {
             }
           }
 
-          // Check if attacking a city
+          // Check if attacking a city - only capture if no defenders remain
           const targetCity = [...newState.cities.values()].find(
             c => coordEquals(c.coord, action.targetCoord!) && c.owner !== attacker.owner
           );
 
           if (targetCity) {
-            // Capture city
-            const updatedCity: City = {
-              ...targetCity,
-              owner: attacker.owner
-            };
-            newState.cities.set(targetCity.id, updatedCity);
+            // Check if there's still a defending unit on the city
+            const hasDefender = [...newState.units.values()].some(
+              u => coordEquals(u.coord, action.targetCoord!) && u.owner !== attacker.owner
+            );
 
-            const updatedAttacker: Unit = {
-              ...attacker,
-              hasAttacked: true,
-              movesLeft: 0
-            };
-            newState.units.set(attacker.id, updatedAttacker);
+            // Only capture if no defenders remain
+            if (!hasDefender) {
+              const updatedCity: City = {
+                ...targetCity,
+                owner: attacker.owner
+              };
+              newState.cities.set(targetCity.id, updatedCity);
+
+              const updatedAttacker: Unit = {
+                ...attacker,
+                hasAttacked: true,
+                movesLeft: 0
+              };
+              newState.units.set(attacker.id, updatedAttacker);
+            }
           }
         }
       }
