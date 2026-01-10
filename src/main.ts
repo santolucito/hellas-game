@@ -133,11 +133,22 @@ class Game {
       // Check if valid attack
       const validAttacks = getValidAttacks(this.state, selectedUnit);
       if (validAttacks.some(c => coordEquals(c, coord))) {
-        this.state = executeAction(this.state, {
-          type: 'attack',
-          unitId: selectedUnit.id,
-          targetCoord: coord
-        });
+        // Trigger attack animation
+        this.renderer.triggerAttackAnimation(selectedUnit.coord, coord);
+        const attackerId = selectedUnit.id;
+        const targetCoord = coord;
+
+        // Delay the actual attack until animation completes
+        setTimeout(() => {
+          this.state = executeAction(this.state, {
+            type: 'attack',
+            unitId: attackerId,
+            targetCoord: targetCoord
+          });
+          this.updateHUD();
+          this.checkGameEnd();
+        }, 350);
+        return; // Don't call updateHUD/checkGameEnd immediately
       }
     } else {
       // Check if clicking on a harvestable tile in player territory
@@ -244,12 +255,27 @@ class Game {
 
     let delay = 0;
     for (const action of actions) {
+      const isAttack = action.type === 'attack';
+      const attackDelay = isAttack ? 350 : 0;
+
       setTimeout(() => {
-        this.state = executeAction(this.state, action);
-        this.updateHUD();
-        this.checkGameEnd();
+        // For attacks, trigger animation first
+        if (isAttack && 'unitId' in action && 'targetCoord' in action) {
+          const attacker = this.state.units.get(action.unitId);
+          if (attacker) {
+            this.renderer.triggerAttackAnimation(attacker.coord, action.targetCoord);
+          }
+        }
+
+        // Delay attack execution for animation, execute others immediately
+        setTimeout(() => {
+          this.state = executeAction(this.state, action);
+          this.updateHUD();
+          this.checkGameEnd();
+        }, attackDelay);
       }, delay);
-      delay += 300;
+
+      delay += 300 + attackDelay;
     }
   }
 

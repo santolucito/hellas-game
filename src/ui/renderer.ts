@@ -76,6 +76,14 @@ export class Renderer {
   // Animation state
   private healAnimFrame = 0;
 
+  // Attack animation state
+  private attackAnim: {
+    attackerCoord: Coord;
+    defenderCoord: Coord;
+    startFrame: number;
+    duration: number;
+  } | null = null;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
@@ -220,6 +228,27 @@ export class Renderer {
     }
   }
 
+  // Trigger attack animation
+  triggerAttackAnimation(attackerCoord: Coord, defenderCoord: Coord): void {
+    this.attackAnim = {
+      attackerCoord,
+      defenderCoord,
+      startFrame: this.healAnimFrame,
+      duration: 20  // ~333ms at 60fps
+    };
+  }
+
+  // Check if attack animation is in progress
+  isAnimating(): boolean {
+    if (!this.attackAnim) return false;
+    const elapsed = this.healAnimFrame - this.attackAnim.startFrame;
+    if (elapsed >= this.attackAnim.duration) {
+      this.attackAnim = null;
+      return false;
+    }
+    return true;
+  }
+
   // Convert grid coordinates to screen pixels (isometric projection)
   private coordToPixel(coord: Coord): { x: number; y: number } {
     // Isometric transformation:
@@ -326,9 +355,9 @@ export class Renderer {
     ctx.fill();
   }
 
-  private drawUnit(x: number, y: number, unit: Unit, isSelected: boolean, hasPhalanx: boolean = false, isOnFriendlyCity: boolean = false, elevation: number = 0): void {
+  private drawUnit(x: number, y: number, unit: Unit, isSelected: boolean, hasPhalanx: boolean = false, isOnFriendlyCity: boolean = false, elevation: number = 0, animScale: number = 1, animFlash: boolean = false): void {
     const { ctx } = this;
-    const size = TILE_WIDTH * 0.25 * this.scale;
+    const size = TILE_WIDTH * 0.25 * this.scale * animScale;
     const color = unit.owner === 0 ? COLORS.player : COLORS.enemy;
     const colorDark = unit.owner === 0 ? COLORS.playerDark : COLORS.enemyDark;
 
@@ -341,6 +370,14 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(x, adjustedY, glowSize, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(155, 230, 95, 0.4)';
+      ctx.fill();
+    }
+
+    // Attack flash effect (red glow when being hit)
+    if (animFlash) {
+      ctx.beginPath();
+      ctx.arc(x, adjustedY, size * 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 80, 80, 0.5)';
       ctx.fill();
     }
 
@@ -865,7 +902,34 @@ export class Renderer {
         c => c.owner === unit.owner && c.coord.q === unit.coord.q && c.coord.r === unit.coord.r
       );
 
-      this.drawUnit(x, y, unit, isSelected, hasPhalanx, isOnFriendlyCity, elevation);
+      // Calculate attack animation effects
+      let animScale = 1;
+      let animShakeX = 0;
+      let animShakeY = 0;
+      let animFlash = false;
+
+      if (this.attackAnim) {
+        const elapsed = this.healAnimFrame - this.attackAnim.startFrame;
+        const progress = elapsed / this.attackAnim.duration;
+        const isAttacker = unit.coord.q === this.attackAnim.attackerCoord.q &&
+                          unit.coord.r === this.attackAnim.attackerCoord.r;
+        const isDefender = unit.coord.q === this.attackAnim.defenderCoord.q &&
+                          unit.coord.r === this.attackAnim.defenderCoord.r;
+
+        if (isAttacker && progress < 0.5) {
+          // Attacker pulses up in first half
+          const pulseProgress = progress * 2; // 0 to 1 in first half
+          animScale = 1 + 0.3 * Math.sin(pulseProgress * Math.PI);
+        }
+        if (isDefender && progress >= 0.3 && progress < 0.9) {
+          // Defender shakes and flashes in second portion
+          animShakeX = (Math.random() - 0.5) * 8;
+          animShakeY = (Math.random() - 0.5) * 6;
+          animFlash = true;
+        }
+      }
+
+      this.drawUnit(x + animShakeX, y + animShakeY, unit, isSelected, hasPhalanx, isOnFriendlyCity, elevation, animScale, animFlash);
     }
 
     // Draw selection indicator on selected unit (pulsing ring)
