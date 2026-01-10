@@ -334,18 +334,31 @@ class Game {
   // Show level-up bonus choice modal
   showLevelUpModal(cityId: string, cityName: string, newLevel: number): void {
     const bonusOptions = this.getBonusOptionsForLevel(newLevel);
+    const playerDrachma = this.state.players[0].drachma;
+    const upgradeCost = 1;
+    const canAfford = playerDrachma >= upgradeCost;
 
     let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
     html += `<h2 style="margin-bottom:10px;color:#c9a227;">🎉 ${cityName} Level Up!</h2>`;
-    html += `<p style="margin-bottom:20px;color:#9b59b6;">Now Level ${newLevel}</p>`;
+    html += `<p style="margin-bottom:10px;color:#9b59b6;">Now Level ${newLevel}</p>`;
+    html += `<p style="margin-bottom:20px;color:${canAfford ? '#c9a227' : '#f25c54'};">Upgrade Cost: ${upgradeCost} Drachma (You have: ${playerDrachma})</p>`;
     html += '<h3 style="margin-bottom:15px;">Choose a bonus:</h3>';
 
     for (const option of bonusOptions) {
-      html += `<div style="margin:8px;padding:15px 25px;background:rgba(155,89,182,0.3);border:2px solid #9b59b6;border-radius:8px;cursor:pointer;min-width:250px;text-align:center;" onclick="window.gameInstance.chooseLevelUpBonus('${cityId}', '${option.id}')">`;
+      if (canAfford) {
+        html += `<div style="margin:8px;padding:15px 25px;background:rgba(155,89,182,0.3);border:2px solid #9b59b6;border-radius:8px;cursor:pointer;min-width:250px;text-align:center;" onclick="window.gameInstance.confirmLevelUpBonus('${cityId}', '${option.id}', '${option.name}')">`;
+      } else {
+        html += `<div style="margin:8px;padding:15px 25px;background:rgba(128,128,128,0.3);border:2px solid #666;border-radius:8px;min-width:250px;text-align:center;opacity:0.5;">`;
+      }
       html += `<span style="font-size:28px;">${option.icon}</span><br>`;
       html += `<strong>${option.name}</strong><br>`;
       html += `<small>${option.desc}</small>`;
       html += '</div>';
+    }
+
+    if (!canAfford) {
+      html += '<p style="margin-top:20px;color:#f25c54;">Not enough Drachma!</p>';
+      html += '<button style="margin-top:10px;padding:10px 20px;background:rgba(201,162,39,0.3);border:2px solid #c9a227;color:#f0e6d2;border-radius:8px;cursor:pointer;" onclick="document.querySelector(\'[style*=\\\'z-index:200\\\']\')?.remove()">Close</button>';
     }
 
     html += '</div>';
@@ -378,9 +391,30 @@ class Game {
     }
   }
 
+  confirmLevelUpBonus(cityId: string, bonusId: string, bonusName: string): void {
+    // Remove the level-up modal first
+    document.querySelector('[style*="z-index:200"]')?.remove();
+
+    // Show confirmation popup
+    let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
+    html += '<h2 style="margin-bottom:20px;color:#c9a227;">Confirm Upgrade</h2>';
+    html += `<p style="margin-bottom:20px;">Build <strong>${bonusName}</strong> for <strong>1 Drachma</strong>?</p>`;
+    html += '<div style="display:flex;gap:15px;">';
+    html += `<button style="padding:12px 30px;background:rgba(126,200,80,0.3);border:2px solid #7ec850;color:#f0e6d2;border-radius:8px;cursor:pointer;font-size:16px;" onclick="window.gameInstance.chooseLevelUpBonus('${cityId}', '${bonusId}')">Confirm</button>`;
+    html += '<button style="padding:12px 30px;background:rgba(242,92,84,0.3);border:2px solid #f25c54;color:#f0e6d2;border-radius:8px;cursor:pointer;font-size:16px;" onclick="document.querySelector(\'[style*=\\\'z-index:200\\\']\')?.remove()">Cancel</button>';
+    html += '</div>';
+    html += '</div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+
   chooseLevelUpBonus(cityId: string, bonusId: string): void {
     const city = this.state.cities.get(cityId);
     if (!city) return;
+
+    // Deduct upgrade cost
+    const upgradeCost = 1;
+    if (this.state.players[0].drachma < upgradeCost) return;
+    this.state.players[0].drachma -= upgradeCost;
 
     // Apply bonus effects
     switch (bonusId) {
