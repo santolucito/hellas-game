@@ -261,9 +261,13 @@ class Game {
       setTimeout(() => {
         // For attacks, trigger animation first
         if (isAttack && 'unitId' in action && 'targetCoord' in action) {
-          const attacker = this.state.units.get(action.unitId);
-          if (attacker) {
-            this.renderer.triggerAttackAnimation(attacker.coord, action.targetCoord);
+          const unitId = action.unitId;
+          const targetCoord = action.targetCoord;
+          if (unitId !== undefined && targetCoord !== undefined) {
+            const attacker = this.state.units.get(unitId);
+            if (attacker) {
+              this.renderer.triggerAttackAnimation(attacker.coord, targetCoord);
+            }
           }
         }
 
