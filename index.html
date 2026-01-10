@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Hellas - Greek Strategy</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      touch-action: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #game-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+      color: #f0e6d2;
+      font-size: 16px;
+      pointer-events: none;
+    }
+    #hud > * {
+      pointer-events: auto;
+    }
+    .hud-left, .hud-right {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .resource {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      background: linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    }
+    .btn {
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      border: 2px solid #c9a227;
+      background: rgba(201, 162, 39, 0.2);
+      color: #f0e6d2;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: all 0.2s;
+    }
+    .btn:active {
+      background: rgba(201, 162, 39, 0.5);
+      transform: scale(0.95);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #tooltip {
+      position: absolute;
+      background: rgba(0,0,0,0.85);
+      color: #f0e6d2;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      pointer-events: none;
+      display: none;
+      max-width: 200px;
+      border: 1px solid #555;
+    }
+    #debug {
+      position: absolute;
+      top: 50px;
+      right: 10px;
+      background: rgba(0,0,0,0.8);
+      color: #0f0;
+      padding: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      border-radius: 4px;
+      display: none;
+    }
+    #debug.visible {
+      display: block;
+    }
+    #victory-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.9);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #f0e6d2;
+      z-index: 100;
+    }
+    #victory-screen.visible {
+      display: flex;
+    }
+    #victory-screen h1 {
+      font-size: 32px;
+      margin-bottom: 20px;
+      color: #c9a227;
+    }
+    #victory-screen p {
+      font-size: 18px;
+      margin-bottom: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="hud">
+      <div class="hud-left">
+        <span class="resource"><span id="drachma">0</span> Drachma</span>
+        <span class="resource">⚔ <span id="unit-count">0</span></span>
+      </div>
+      <div class="hud-right">
+        <span>Turn <span id="turn-num">1</span></span>
+      </div>
+    </div>
+    <div id="controls">
+      <button class="btn" id="btn-tech">Tech</button>
+      <button class="btn" id="btn-end-turn">End Turn</button>
+    </div>
+    <div id="tooltip"></div>
+    <div id="debug">
+      <div>FPS: <span id="debug-fps">0</span></div>
+      <div>Seed: <span id="debug-seed">-</span></div>
+      <div>Tile: <span id="debug-tile">-</span></div>
+      <div>Turn: <span id="debug-turn">-</span></div>
+    </div>
+    <div id="victory-screen">
+      <h1 id="victory-title">Victory!</h1>
+      <p id="victory-message">You have conquered the enemy!</p>
+      <div id="victory-stats" style="text-align:left;margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.1);border-radius:8px;"></div>
+      <button class="btn" id="btn-restart">Play Again</button>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
