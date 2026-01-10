@@ -330,6 +330,7 @@ export class Renderer {
     const { ctx } = this;
     const size = TILE_WIDTH * 0.25 * this.scale;
     const color = unit.owner === 0 ? COLORS.player : COLORS.enemy;
+    const colorDark = unit.owner === 0 ? COLORS.playerDark : COLORS.enemyDark;
 
     // Adjust y for terrain elevation
     const adjustedY = y - elevation * this.scale;
@@ -345,44 +346,33 @@ export class Renderer {
 
     // Unit shadow
     ctx.beginPath();
-    ctx.ellipse(x, adjustedY + size * 0.3, size * 0.8, size * 0.3, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, adjustedY + size * 0.5, size * 0.9, size * 0.35, 0, 0, Math.PI * 2);
     ctx.fillStyle = COLORS.shadow;
     ctx.fill();
 
-    // Unit body - chunky rounded square (Polytopia style)
-    const bodySize = size * 0.9;
-    ctx.beginPath();
-    ctx.roundRect(x - bodySize, adjustedY - bodySize * 1.2, bodySize * 2, bodySize * 2, bodySize * 0.3);
-    ctx.fillStyle = color;
-    ctx.fill();
+    // Draw unit based on type
+    if (unit.type === 'hoplite') {
+      this.drawHoplite(x, adjustedY, size, color, colorDark, hasPhalanx);
+    } else if (unit.type === 'peltast') {
+      this.drawPeltast(x, adjustedY, size, color, colorDark);
+    } else if (unit.type === 'trireme') {
+      this.drawTrireme(x, adjustedY, size, color, colorDark);
+    }
 
     // Selection ring
     if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(x, adjustedY, size * 1.3, 0, Math.PI * 2);
       ctx.strokeStyle = COLORS.selected;
       ctx.lineWidth = 3;
       ctx.stroke();
     }
 
-    // Unit type icon
-    ctx.fillStyle = COLORS.white;
-    ctx.font = `bold ${size * 1.1}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    const icon = unit.type === 'hoplite' ? '⚔' : unit.type === 'trireme' ? '⛵' : '🏹';
-    ctx.fillText(icon, x, adjustedY - bodySize * 0.2);
-
-    // Tech bonus indicator (shield for phalanx)
-    if (hasPhalanx) {
-      ctx.font = `bold ${size * 0.6}px sans-serif`;
-      ctx.fillText('🛡', x + bodySize * 0.8, adjustedY - bodySize);
-    }
-
     // HP bar - cleaner Polytopia style
-    const hpWidth = bodySize * 1.6;
+    const hpWidth = size * 1.8;
     const hpHeight = 4 * this.scale;
     const hpX = x - hpWidth / 2;
-    const hpY = adjustedY + bodySize * 0.9;
+    const hpY = adjustedY + size * 0.7;
 
     // HP bar background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -395,6 +385,236 @@ export class Renderer {
     ctx.fillStyle = hpPercent > 0.5 ? '#7ec850' : hpPercent > 0.25 ? '#f9c846' : '#f25c54';
     ctx.beginPath();
     ctx.roundRect(hpX, hpY, hpWidth * hpPercent, hpHeight, 2);
+    ctx.fill();
+  }
+
+  // Cute hoplite warrior with helmet, shield and spear
+  private drawHoplite(x: number, y: number, size: number, color: string, colorDark: string, hasPhalanx: boolean): void {
+    const { ctx } = this;
+
+    // Body (chunky cylinder shape)
+    const bodyWidth = size * 0.7;
+    const bodyHeight = size * 0.9;
+
+    // Body front
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, bodyWidth, bodyHeight * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body side (3D effect)
+    ctx.fillStyle = colorDark;
+    ctx.beginPath();
+    ctx.ellipse(x, y + bodyHeight * 0.15, bodyWidth, bodyHeight * 0.5, 0, 0, Math.PI);
+    ctx.fill();
+
+    // Shield (large round shield on left side)
+    const shieldSize = size * 0.55;
+    ctx.fillStyle = hasPhalanx ? '#ffd700' : '#cd7f32'; // Gold if phalanx, bronze otherwise
+    ctx.beginPath();
+    ctx.arc(x - size * 0.25, y - size * 0.1, shieldSize, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Shield rim
+    ctx.strokeStyle = hasPhalanx ? '#b8860b' : '#8b4513';
+    ctx.lineWidth = 2 * this.scale;
+    ctx.stroke();
+
+    // Shield emblem (simple pattern)
+    ctx.fillStyle = hasPhalanx ? '#b8860b' : '#8b4513';
+    ctx.beginPath();
+    ctx.arc(x - size * 0.25, y - size * 0.1, shieldSize * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Helmet (rounded with crest)
+    const helmetY = y - size * 0.7;
+    ctx.fillStyle = '#cd7f32'; // Bronze helmet
+    ctx.beginPath();
+    ctx.arc(x, helmetY, size * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Helmet crest (red plume)
+    ctx.fillStyle = '#dc3545';
+    ctx.beginPath();
+    ctx.moveTo(x - size * 0.1, helmetY - size * 0.35);
+    ctx.quadraticCurveTo(x, helmetY - size * 0.6, x + size * 0.4, helmetY - size * 0.25);
+    ctx.quadraticCurveTo(x, helmetY - size * 0.1, x - size * 0.1, helmetY - size * 0.35);
+    ctx.fill();
+
+    // Face (cute dot eyes)
+    ctx.fillStyle = '#2d2d2d';
+    ctx.beginPath();
+    ctx.arc(x - size * 0.12, helmetY + size * 0.05, size * 0.06, 0, Math.PI * 2);
+    ctx.arc(x + size * 0.12, helmetY + size * 0.05, size * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spear (on right side)
+    ctx.strokeStyle = '#8b4513';
+    ctx.lineWidth = 3 * this.scale;
+    ctx.beginPath();
+    ctx.moveTo(x + size * 0.4, y + size * 0.3);
+    ctx.lineTo(x + size * 0.5, y - size * 1.1);
+    ctx.stroke();
+
+    // Spear tip
+    ctx.fillStyle = '#c0c0c0';
+    ctx.beginPath();
+    ctx.moveTo(x + size * 0.5, y - size * 1.1);
+    ctx.lineTo(x + size * 0.4, y - size * 1.3);
+    ctx.lineTo(x + size * 0.6, y - size * 1.3);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Cute peltast archer with bow
+  private drawPeltast(x: number, y: number, size: number, color: string, colorDark: string): void {
+    const { ctx } = this;
+
+    // Body (slimmer than hoplite)
+    const bodyWidth = size * 0.55;
+    const bodyHeight = size * 0.8;
+
+    // Body
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, bodyWidth, bodyHeight * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body side
+    ctx.fillStyle = colorDark;
+    ctx.beginPath();
+    ctx.ellipse(x, y + bodyHeight * 0.12, bodyWidth, bodyHeight * 0.5, 0, 0, Math.PI);
+    ctx.fill();
+
+    // Quiver on back (brown container with arrows)
+    ctx.fillStyle = '#8b4513';
+    ctx.beginPath();
+    ctx.roundRect(x + size * 0.2, y - size * 0.5, size * 0.25, size * 0.7, 3);
+    ctx.fill();
+
+    // Arrow feathers sticking out
+    ctx.fillStyle = '#f0e6d2';
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + size * 0.25 + i * size * 0.06, y - size * 0.5);
+      ctx.lineTo(x + size * 0.28 + i * size * 0.06, y - size * 0.7);
+      ctx.lineTo(x + size * 0.31 + i * size * 0.06, y - size * 0.5);
+      ctx.fill();
+    }
+
+    // Head (with simple cap)
+    const headY = y - size * 0.6;
+    ctx.fillStyle = '#f5deb3'; // Skin tone
+    ctx.beginPath();
+    ctx.arc(x, headY, size * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cap
+    ctx.fillStyle = '#228b22';
+    ctx.beginPath();
+    ctx.arc(x, headY - size * 0.1, size * 0.35, Math.PI, 0, true);
+    ctx.fill();
+
+    // Face (cute dot eyes)
+    ctx.fillStyle = '#2d2d2d';
+    ctx.beginPath();
+    ctx.arc(x - size * 0.1, headY + size * 0.02, size * 0.05, 0, Math.PI * 2);
+    ctx.arc(x + size * 0.1, headY + size * 0.02, size * 0.05, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bow (curved wood)
+    ctx.strokeStyle = '#8b4513';
+    ctx.lineWidth = 3 * this.scale;
+    ctx.beginPath();
+    ctx.arc(x - size * 0.5, y - size * 0.2, size * 0.5, -Math.PI * 0.4, Math.PI * 0.4);
+    ctx.stroke();
+
+    // Bowstring
+    ctx.strokeStyle = '#f5f5dc';
+    ctx.lineWidth = 1.5 * this.scale;
+    ctx.beginPath();
+    ctx.moveTo(x - size * 0.5 + Math.cos(-Math.PI * 0.4) * size * 0.5, y - size * 0.2 + Math.sin(-Math.PI * 0.4) * size * 0.5);
+    ctx.lineTo(x - size * 0.5 + Math.cos(Math.PI * 0.4) * size * 0.5, y - size * 0.2 + Math.sin(Math.PI * 0.4) * size * 0.5);
+    ctx.stroke();
+  }
+
+  // Cute trireme boat with sail
+  private drawTrireme(x: number, y: number, size: number, color: string, colorDark: string): void {
+    const { ctx } = this;
+
+    // Hull (boat shape)
+    const hullWidth = size * 1.3;
+    const hullHeight = size * 0.5;
+
+    // Hull bottom (darker)
+    ctx.fillStyle = '#5d4e37';
+    ctx.beginPath();
+    ctx.moveTo(x - hullWidth, y + hullHeight * 0.3);
+    ctx.quadraticCurveTo(x, y + hullHeight, x + hullWidth, y + hullHeight * 0.3);
+    ctx.lineTo(x + hullWidth * 0.8, y);
+    ctx.lineTo(x - hullWidth * 0.8, y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Hull top (lighter wood)
+    ctx.fillStyle = '#8b7355';
+    ctx.beginPath();
+    ctx.moveTo(x - hullWidth * 0.9, y - hullHeight * 0.1);
+    ctx.lineTo(x + hullWidth * 0.9, y - hullHeight * 0.1);
+    ctx.lineTo(x + hullWidth * 0.8, y + hullHeight * 0.2);
+    ctx.lineTo(x - hullWidth * 0.8, y + hullHeight * 0.2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Ram at front (pointed)
+    ctx.fillStyle = '#cd7f32';
+    ctx.beginPath();
+    ctx.moveTo(x + hullWidth, y + hullHeight * 0.3);
+    ctx.lineTo(x + hullWidth * 1.3, y + hullHeight * 0.1);
+    ctx.lineTo(x + hullWidth, y - hullHeight * 0.1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Mast
+    ctx.fillStyle = '#5d4e37';
+    ctx.fillRect(x - size * 0.06, y - size * 1.2, size * 0.12, size * 1.1);
+
+    // Sail (team colored)
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - size * 1.1);
+    ctx.quadraticCurveTo(x + size * 0.6, y - size * 0.7, x + size * 0.1, y - size * 0.2);
+    ctx.lineTo(x, y - size * 0.2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sail edge
+    ctx.strokeStyle = colorDark;
+    ctx.lineWidth = 2 * this.scale;
+    ctx.stroke();
+
+    // Oars (small sticks on sides)
+    ctx.strokeStyle = '#8b7355';
+    ctx.lineWidth = 2 * this.scale;
+    for (let i = -2; i <= 2; i++) {
+      const oarX = x + i * size * 0.3;
+      // Left oar
+      ctx.beginPath();
+      ctx.moveTo(oarX, y + hullHeight * 0.1);
+      ctx.lineTo(oarX - size * 0.25, y + hullHeight * 0.5);
+      ctx.stroke();
+      // Right oar
+      ctx.beginPath();
+      ctx.moveTo(oarX, y + hullHeight * 0.1);
+      ctx.lineTo(oarX + size * 0.25, y + hullHeight * 0.5);
+      ctx.stroke();
+    }
+
+    // Cute face on hull
+    ctx.fillStyle = '#2d2d2d';
+    ctx.beginPath();
+    ctx.arc(x + hullWidth * 0.5, y, size * 0.06, 0, Math.PI * 2);
+    ctx.arc(x + hullWidth * 0.7, y, size * 0.06, 0, Math.PI * 2);
     ctx.fill();
   }
 

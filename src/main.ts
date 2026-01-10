@@ -475,6 +475,58 @@ class Game {
 
     const endTurnBtn = document.getElementById('btn-end-turn') as HTMLButtonElement;
     endTurnBtn.disabled = this.state.phase !== 'player_turn';
+
+    this.updateUnitPanel();
+  }
+
+  private updateUnitPanel(): void {
+    const panel = document.getElementById('unit-panel')!;
+    const selectedUnit = this.state.selectedUnitId ? this.state.units.get(this.state.selectedUnitId) : null;
+
+    if (!selectedUnit || selectedUnit.owner !== 0) {
+      panel.classList.remove('visible');
+      return;
+    }
+
+    panel.classList.add('visible');
+
+    // Unit type icons and names
+    const unitInfo: Record<string, { icon: string; name: string }> = {
+      hoplite: { icon: '🛡️', name: 'Hoplite' },
+      peltast: { icon: '🏹', name: 'Peltast' },
+      trireme: { icon: '⛵', name: 'Trireme' }
+    };
+
+    const info = unitInfo[selectedUnit.type] || { icon: '⚔', name: selectedUnit.type };
+    document.getElementById('unit-icon')!.textContent = info.icon;
+    document.getElementById('unit-name')!.textContent = info.name;
+
+    // Stats
+    document.getElementById('unit-hp')!.textContent = `${selectedUnit.hp}/${selectedUnit.maxHp}`;
+    document.getElementById('unit-attack')!.textContent = selectedUnit.attack.toString();
+    document.getElementById('unit-defense')!.textContent = selectedUnit.defense.toString();
+    document.getElementById('unit-movement')!.textContent = `${selectedUnit.movesLeft}/${selectedUnit.movement}`;
+
+    // HP bar
+    const hpPercent = (selectedUnit.hp / selectedUnit.maxHp) * 100;
+    const hpBar = document.getElementById('unit-hp-bar')!;
+    hpBar.style.width = `${hpPercent}%`;
+    hpBar.style.background = hpPercent > 50 ? '#7ec850' : hpPercent > 25 ? '#f9c846' : '#f25c54';
+
+    // Status text
+    const statusEl = document.getElementById('unit-status')!;
+    const canMove = selectedUnit.movesLeft > 0;
+    const canAttack = !selectedUnit.hasAttacked;
+
+    if (canMove && canAttack) {
+      statusEl.innerHTML = '<span class="can-act">Ready to move & attack</span>';
+    } else if (canMove) {
+      statusEl.innerHTML = '<span class="can-act">Can move</span> · <span class="cannot-act">Attacked</span>';
+    } else if (canAttack) {
+      statusEl.innerHTML = '<span class="cannot-act">No moves</span> · <span class="can-act">Can attack</span>';
+    } else {
+      statusEl.innerHTML = '<span class="cannot-act">Exhausted</span>';
+    }
   }
 
   private updateDebug(): void {

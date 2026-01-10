@@ -115,6 +115,75 @@
     #debug.visible {
       display: block;
     }
+    #unit-panel {
+      position: absolute;
+      bottom: 80px;
+      left: 16px;
+      background: rgba(0,0,0,0.85);
+      color: #f0e6d2;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      min-width: 160px;
+      border: 2px solid #c9a227;
+      display: none;
+    }
+    #unit-panel.visible {
+      display: block;
+    }
+    #unit-panel .unit-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(201,162,39,0.4);
+    }
+    #unit-panel .unit-icon {
+      font-size: 28px;
+    }
+    #unit-panel .unit-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #c9a227;
+    }
+    #unit-panel .unit-stats {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 12px;
+    }
+    #unit-panel .stat-label {
+      color: #999;
+    }
+    #unit-panel .stat-value {
+      text-align: right;
+      font-weight: 500;
+    }
+    #unit-panel .hp-bar {
+      height: 8px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 4px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    #unit-panel .hp-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    #unit-panel .status-row {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(201,162,39,0.4);
+      font-size: 12px;
+      color: #888;
+    }
+    #unit-panel .status-row .can-act {
+      color: #7ec850;
+    }
+    #unit-panel .status-row .cannot-act {
+      color: #f25c54;
+    }
     #victory-screen {
       position: absolute;
       top: 0;
@@ -160,6 +229,28 @@
       <button class="btn" id="btn-end-turn">End Turn</button>
     </div>
     <div id="tooltip"></div>
+    <div id="unit-panel">
+      <div class="unit-header">
+        <span class="unit-icon" id="unit-icon">⚔</span>
+        <span class="unit-name" id="unit-name">Hoplite</span>
+      </div>
+      <div class="unit-stats">
+        <span class="stat-label">HP</span>
+        <span class="stat-value" id="unit-hp">10/10</span>
+        <span class="stat-label">Attack</span>
+        <span class="stat-value" id="unit-attack">3</span>
+        <span class="stat-label">Defense</span>
+        <span class="stat-value" id="unit-defense">2</span>
+        <span class="stat-label">Movement</span>
+        <span class="stat-value" id="unit-movement">2/2</span>
+      </div>
+      <div class="hp-bar">
+        <div class="hp-bar-fill" id="unit-hp-bar" style="width:100%;background:#7ec850;"></div>
+      </div>
+      <div class="status-row">
+        <span id="unit-status">Ready to move</span>
+      </div>
+    </div>
     <div id="debug">
       <div>FPS: <span id="debug-fps">0</span></div>
       <div>Seed: <span id="debug-seed">-</span></div>
