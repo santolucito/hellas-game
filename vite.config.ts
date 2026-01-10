@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: '/hellas-game/',
+  base: '/',
   server: {
     host: true,
     port: 3000
