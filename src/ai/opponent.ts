@@ -1,4 +1,4 @@
-import { GameState, GameAction, Hex, hexEquals, hexDistance, hexNeighbors, hexKey, TechId } from '../game/types';
+import { GameState, GameAction, Coord, coordEquals, coordDistance, neighbors, coordKey, TechId } from '../game/types';
 import { getValidMoves, getValidAttacks, UNIT_COSTS, TECHS, getHarvestableTiles } from '../game/state';
 
 export function runAI(state: GameState): GameAction[] {
@@ -9,12 +9,12 @@ export function runAI(state: GameState): GameAction[] {
   const neutralVillages = [...state.cities.values()].filter(c => c.owner === null);
 
   // AI harvests resources in its territory
-  const harvestableHexes = getHarvestableTiles(state, 1);
-  if (harvestableHexes.length > 0) {
+  const harvestableCoords = getHarvestableTiles(state, 1);
+  if (harvestableCoords.length > 0) {
     // Harvest up to 2 resources per turn
-    const toHarvest = harvestableHexes.slice(0, 2);
-    for (const hex of toHarvest) {
-      actions.push({ type: 'harvest', targetHex: hex });
+    const toHarvest = harvestableCoords.slice(0, 2);
+    for (const coord of toHarvest) {
+      actions.push({ type: 'harvest', targetCoord: coord });
     }
   }
 
@@ -34,15 +34,15 @@ export function runAI(state: GameState): GameAction[] {
     const cost = UNIT_COSTS[unitType];
 
     if (aiPlayer.drachma >= cost) {
-      const adjacentHexes = hexNeighbors(city.hex);
-      const spawnHex = adjacentHexes.find(h => {
-        const tile = state.tiles.get(hexKey(h));
+      const adjacentCoords = neighbors(city.coord);
+      const spawnCoord = adjacentCoords.find(c => {
+        const tile = state.tiles.get(coordKey(c));
         if (!tile || tile.terrain === 'water') return false;
-        const occupied = [...state.units.values()].some(u => hexEquals(u.hex, h));
+        const occupied = [...state.units.values()].some(u => coordEquals(u.coord, c));
         return !occupied;
       });
 
-      if (spawnHex) {
+      if (spawnCoord) {
         actions.push({ type: 'train', cityId: city.id, unitType });
         // Only train one unit per turn to not drain all resources
         break;
@@ -57,30 +57,30 @@ export function runAI(state: GameState): GameAction[] {
     const attacks = getValidAttacks(state, unit);
     if (attacks.length > 0) {
       // Attack the weakest target
-      let bestTarget: Hex | null = null;
+      let bestTarget: Coord | null = null;
       let lowestHp = Infinity;
 
-      for (const attackHex of attacks) {
+      for (const attackCoord of attacks) {
         const target = [...state.units.values()].find(
-          u => hexEquals(u.hex, attackHex) && u.owner !== unit.owner
+          u => coordEquals(u.coord, attackCoord) && u.owner !== unit.owner
         );
         if (target && target.hp < lowestHp) {
           lowestHp = target.hp;
-          bestTarget = attackHex;
+          bestTarget = attackCoord;
         }
 
         // Also consider cities
         const city = [...state.cities.values()].find(
-          c => hexEquals(c.hex, attackHex) && c.owner !== unit.owner
+          c => coordEquals(c.coord, attackCoord) && c.owner !== unit.owner
         );
         if (city) {
-          bestTarget = attackHex; // Prioritize cities
+          bestTarget = attackCoord; // Prioritize cities
           break;
         }
       }
 
       if (bestTarget) {
-        actions.push({ type: 'attack', unitId: unit.id, targetHex: bestTarget });
+        actions.push({ type: 'attack', unitId: unit.id, targetCoord: bestTarget });
         continue;
       }
     }
@@ -90,17 +90,17 @@ export function runAI(state: GameState): GameAction[] {
     if (validMoves.length === 0) continue;
 
     // Find nearest target: neutral villages (high priority), player units, or player cities
-    let nearestTarget: Hex | null = null;
+    let nearestTarget: Coord | null = null;
     let nearestDist = Infinity;
     let targetPriority = 0; // Higher = more important
 
     // Priority 3: Neutral villages (capture them!)
     for (const village of neutralVillages) {
-      const dist = hexDistance(unit.hex, village.hex);
+      const dist = coordDistance(unit.coord, village.coord);
       if (dist < nearestDist || targetPriority < 3) {
         if (targetPriority < 3 || dist < nearestDist) {
           nearestDist = dist;
-          nearestTarget = village.hex;
+          nearestTarget = village.coord;
           targetPriority = 3;
         }
       }
@@ -109,10 +109,10 @@ export function runAI(state: GameState): GameAction[] {
     // Priority 2: Player cities (only if no villages nearby)
     for (const city of state.cities.values()) {
       if (city.owner === 0) {
-        const dist = hexDistance(unit.hex, city.hex);
+        const dist = coordDistance(unit.coord, city.coord);
         if (targetPriority < 2 || (targetPriority === 2 && dist < nearestDist)) {
           nearestDist = dist;
-          nearestTarget = city.hex;
+          nearestTarget = city.coord;
           targetPriority = 2;
         }
       }
@@ -121,10 +121,10 @@ export function runAI(state: GameState): GameAction[] {
     // Priority 1: Player units
     for (const playerUnit of state.units.values()) {
       if (playerUnit.owner === 0) {
-        const dist = hexDistance(unit.hex, playerUnit.hex);
+        const dist = coordDistance(unit.coord, playerUnit.coord);
         if (targetPriority < 1 || (targetPriority === 1 && dist < nearestDist)) {
           nearestDist = dist;
-          nearestTarget = playerUnit.hex;
+          nearestTarget = playerUnit.coord;
           targetPriority = 1;
         }
       }
@@ -132,11 +132,11 @@ export function runAI(state: GameState): GameAction[] {
 
     if (nearestTarget) {
       // Move toward target
-      let bestMove: Hex | null = null;
-      let bestDist = hexDistance(unit.hex, nearestTarget);
+      let bestMove: Coord | null = null;
+      let bestDist = coordDistance(unit.coord, nearestTarget);
 
       for (const move of validMoves) {
-        const dist = hexDistance(move, nearestTarget);
+        const dist = coordDistance(move, nearestTarget);
         if (dist < bestDist) {
           bestDist = dist;
           bestMove = move;
@@ -144,12 +144,12 @@ export function runAI(state: GameState): GameAction[] {
       }
 
       if (bestMove) {
-        actions.push({ type: 'move', unitId: unit.id, targetHex: bestMove });
+        actions.push({ type: 'move', unitId: unit.id, targetCoord: bestMove });
       }
     } else {
       // No visible target, move randomly (explore)
       const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-      actions.push({ type: 'move', unitId: unit.id, targetHex: randomMove });
+      actions.push({ type: 'move', unitId: unit.id, targetCoord: randomMove });
     }
   }
 

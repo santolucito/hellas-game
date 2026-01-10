@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateMap } from './mapgen';
-import { hexKey } from './types';
+import { coordKey } from './types';
 
 describe('Map Generation', () => {
   it('produces identical maps for same seed', () => {
@@ -18,8 +18,8 @@ describe('Map Generation', () => {
       const tile2 = result2.tiles.get(key);
       expect(tile2).toBeDefined();
       expect(tile1.terrain).toBe(tile2!.terrain);
-      expect(tile1.hex.q).toBe(tile2!.hex.q);
-      expect(tile1.hex.r).toBe(tile2!.hex.r);
+      expect(tile1.coord.q).toBe(tile2!.coord.q);
+      expect(tile1.coord.r).toBe(tile2!.coord.r);
     }
 
     // Check starting positions match
@@ -43,30 +43,33 @@ describe('Map Generation', () => {
     expect(differences).toBeGreaterThan(0);
   });
 
-  it('generates expected number of hexes for radius', () => {
+  it('generates expected number of tiles for radius', () => {
     const radius = 6;
     const map = generateMap('count-test', radius);
 
-    // Hexagonal map has 3*r^2 + 3*r + 1 hexes
-    const expectedHexes = 3 * radius * radius + 3 * radius + 1;
-    expect(map.tiles.size).toBe(expectedHexes);
+    // Square grid map has (radius*2+1)^2 tiles
+    const mapSize = radius * 2 + 1;
+    const expectedTiles = mapSize * mapSize;
+    expect(map.tiles.size).toBe(expectedTiles);
   });
 
   it('places starting positions on opposite sides', () => {
-    const map = generateMap('position-test', 6);
+    const radius = 6;
+    const map = generateMap('position-test', radius);
+    const midQ = Math.floor((radius * 2 + 1) / 2);
 
-    // Player should be on negative q side
-    expect(map.playerStart.q).toBeLessThan(0);
+    // Player should be on left side (low q)
+    expect(map.playerStart.q).toBeLessThan(midQ);
 
-    // AI should be on positive q side
-    expect(map.aiStart.q).toBeGreaterThan(0);
+    // AI should be on right side (high q)
+    expect(map.aiStart.q).toBeGreaterThan(midQ);
   });
 
   it('ensures starting positions are on land', () => {
     const map = generateMap('land-start-test', 6);
 
-    const playerTile = map.tiles.get(hexKey(map.playerStart));
-    const aiTile = map.tiles.get(hexKey(map.aiStart));
+    const playerTile = map.tiles.get(coordKey(map.playerStart));
+    const aiTile = map.tiles.get(coordKey(map.aiStart));
 
     expect(playerTile).toBeDefined();
     expect(aiTile).toBeDefined();

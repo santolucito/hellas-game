@@ -1,6 +1,6 @@
 import {
-  GameState, GameAction, Hex, Unit, City, Player, PlayerId, OwnerId,
-  hexKey, hexEquals, hexNeighbors, hexesInRadius, hexDistance,
+  GameState, GameAction, Coord, Unit, City, Player, PlayerId, OwnerId,
+  coordKey, coordEquals, neighbors, coordsInRadius, coordDistance,
   Tile, TechId
 } from './types';
 import { generateMap } from './mapgen';
@@ -8,7 +8,7 @@ import { generateMap } from './mapgen';
 let unitIdCounter = 0;
 let cityIdCounter = 0;
 
-export function createUnit(type: Unit['type'], owner: PlayerId, hex: Hex): Unit {
+export function createUnit(type: Unit['type'], owner: PlayerId, coord: Coord): Unit {
   const stats = {
     hoplite: { hp: 10, attack: 3, defense: 2, movement: 2 },
     peltast: { hp: 8, attack: 2, defense: 1, movement: 3 },
@@ -19,7 +19,7 @@ export function createUnit(type: Unit['type'], owner: PlayerId, hex: Hex): Unit 
     id: `unit_${unitIdCounter++}`,
     type,
     owner,
-    hex,
+    coord,
     hp: stats.hp,
     maxHp: stats.hp,
     attack: stats.attack,
@@ -30,12 +30,12 @@ export function createUnit(type: Unit['type'], owner: PlayerId, hex: Hex): Unit 
   };
 }
 
-function createCity(name: string, owner: OwnerId, hex: Hex, isCapital: boolean = false): City {
+function createCity(name: string, owner: OwnerId, coord: Coord, isCapital: boolean = false): City {
   return {
     id: `city_${cityIdCounter++}`,
     name,
     owner,
-    hex,
+    coord,
     level: 1,
     population: 0,
     territory: 1, // Start with radius 1 territory
@@ -45,8 +45,8 @@ function createCity(name: string, owner: OwnerId, hex: Hex, isCapital: boolean =
 }
 
 // Create a neutral village (city with null owner)
-function createVillage(hex: Hex): City {
-  return createCity('Village', null, hex, false);
+function createVillage(coord: Coord): City {
+  return createCity('Village', null, coord, false);
 }
 
 const GREEK_CITY_NAMES = [
@@ -68,11 +68,11 @@ export function createInitialState(seed: string, mapRadius: number = 6): GameSta
   cities.set(playerCity.id, playerCity);
 
   // Place hoplite adjacent to city
-  const playerUnitHex = hexNeighbors(playerStart).find(h => {
-    const tile = tiles.get(hexKey(h));
+  const playerUnitCoord = neighbors(playerStart).find(c => {
+    const tile = tiles.get(coordKey(c));
     return tile && tile.terrain !== 'water';
   }) || playerStart;
-  const playerUnit = createUnit('hoplite', 0, playerUnitHex);
+  const playerUnit = createUnit('hoplite', 0, playerUnitCoord);
   units.set(playerUnit.id, playerUnit);
 
   // Create AI city (capital) and unit
@@ -80,16 +80,16 @@ export function createInitialState(seed: string, mapRadius: number = 6): GameSta
   cities.set(aiCity.id, aiCity);
 
   // Create neutral villages
-  for (const villageHex of villageLocations) {
-    const village = createVillage(villageHex);
+  for (const villageCoord of villageLocations) {
+    const village = createVillage(villageCoord);
     cities.set(village.id, village);
   }
 
-  const aiUnitHex = hexNeighbors(aiStart).find(h => {
-    const tile = tiles.get(hexKey(h));
+  const aiUnitCoord = neighbors(aiStart).find(c => {
+    const tile = tiles.get(coordKey(c));
     return tile && tile.terrain !== 'water';
   }) || aiStart;
-  const aiUnit = createUnit('hoplite', 1, aiUnitHex);
+  const aiUnit = createUnit('hoplite', 1, aiUnitCoord);
   units.set(aiUnit.id, aiUnit);
 
   const players: [Player, Player] = [
@@ -117,16 +117,16 @@ export function createInitialState(seed: string, mapRadius: number = 6): GameSta
   };
 }
 
-// Get all hexes within a city's territory
-export function getCityTerritory(state: GameState, city: City): Hex[] {
-  return hexesInRadius(city.hex, city.territory).filter(h => state.tiles.has(hexKey(h)));
+// Get all coords within a city's territory
+export function getCityTerritory(state: GameState, city: City): Coord[] {
+  return coordsInRadius(city.coord, city.territory).filter(c => state.tiles.has(coordKey(c)));
 }
 
-// Check if a hex is in any city's territory for a given owner
-export function isInTerritory(state: GameState, hex: Hex, owner: OwnerId): boolean {
+// Check if a coord is in any city's territory for a given owner
+export function isInTerritory(state: GameState, coord: Coord, owner: OwnerId): boolean {
   for (const city of state.cities.values()) {
     if (city.owner === owner) {
-      const dist = hexDistance(hex, city.hex);
+      const dist = coordDistance(coord, city.coord);
       if (dist <= city.territory) {
         return true;
       }
@@ -135,11 +135,11 @@ export function isInTerritory(state: GameState, hex: Hex, owner: OwnerId): boole
   return false;
 }
 
-// Get the city that owns a specific hex (if any)
-export function getCityOwningHex(state: GameState, hex: Hex): City | null {
+// Get the city that owns a specific coord (if any)
+export function getCityOwningCoord(state: GameState, coord: Coord): City | null {
   for (const city of state.cities.values()) {
     if (city.owner !== null) {
-      const dist = hexDistance(hex, city.hex);
+      const dist = coordDistance(coord, city.coord);
       if (dist <= city.territory) {
         return city;
       }
@@ -149,26 +149,26 @@ export function getCityOwningHex(state: GameState, hex: Hex): City | null {
 }
 
 // Get all harvestable tiles in a player's territory
-export function getHarvestableTiles(state: GameState, playerId: PlayerId): Hex[] {
-  const harvestable: Hex[] = [];
+export function getHarvestableTiles(state: GameState, playerId: PlayerId): Coord[] {
+  const harvestable: Coord[] = [];
 
   for (const city of state.cities.values()) {
     if (city.owner !== playerId) continue;
 
-    const territoryHexes = hexesInRadius(city.hex, city.territory);
-    for (const hex of territoryHexes) {
-      const key = hexKey(hex);
+    const territoryCoords = coordsInRadius(city.coord, city.territory);
+    for (const coord of territoryCoords) {
+      const key = coordKey(coord);
       const tile = state.tiles.get(key);
       if (!tile || tile.harvested) continue;
 
       // Check if harvestable based on terrain
       if (tile.terrain === 'forest' || tile.terrain === 'hills') {
-        harvestable.push(hex);
+        harvestable.push(coord);
       } else if (tile.terrain === 'water') {
         // Water only if adjacent to a city
-        const isAdjacentToCity = hexDistance(hex, city.hex) === 1;
+        const isAdjacentToCity = coordDistance(coord, city.coord) === 1;
         if (isAdjacentToCity) {
-          harvestable.push(hex);
+          harvestable.push(coord);
         }
       }
     }
@@ -183,8 +183,8 @@ export function updateVisibility(state: GameState, playerId: PlayerId): void {
   // Add visibility from units
   for (const unit of state.units.values()) {
     if (unit.owner === playerId) {
-      for (const hex of hexesInRadius(unit.hex, 2)) {
-        const key = hexKey(hex);
+      for (const coord of coordsInRadius(unit.coord, 2)) {
+        const key = coordKey(coord);
         if (state.tiles.has(key)) {
           state.visible.add(key);
           state.discovered.add(key);
@@ -196,8 +196,8 @@ export function updateVisibility(state: GameState, playerId: PlayerId): void {
   // Add visibility from cities
   for (const city of state.cities.values()) {
     if (city.owner === playerId) {
-      for (const hex of hexesInRadius(city.hex, 2)) {
-        const key = hexKey(hex);
+      for (const coord of coordsInRadius(city.coord, 2)) {
+        const key = coordKey(coord);
         if (state.tiles.has(key)) {
           state.visible.add(key);
           state.discovered.add(key);
@@ -216,20 +216,20 @@ export function getTerrainCost(terrain: Tile['terrain']): number {
   }
 }
 
-export function getValidMoves(state: GameState, unit: Unit): Hex[] {
+export function getValidMoves(state: GameState, unit: Unit): Coord[] {
   if (unit.movesLeft <= 0) return [];
 
-  const validMoves: Hex[] = [];
+  const validMoves: Coord[] = [];
   const visited = new Map<string, number>();
-  const queue: { hex: Hex; cost: number }[] = [{ hex: unit.hex, cost: 0 }];
+  const queue: { coord: Coord; cost: number }[] = [{ coord: unit.coord, cost: 0 }];
 
-  visited.set(hexKey(unit.hex), 0);
+  visited.set(coordKey(unit.coord), 0);
 
   while (queue.length > 0) {
     const current = queue.shift()!;
 
-    for (const neighbor of hexNeighbors(current.hex)) {
-      const key = hexKey(neighbor);
+    for (const neighbor of neighbors(current.coord)) {
+      const key = coordKey(neighbor);
       const tile = state.tiles.get(key);
 
       if (!tile) continue; // Out of map
@@ -247,8 +247,8 @@ export function getValidMoves(state: GameState, unit: Unit): Hex[] {
       const existingCost = visited.get(key);
       if (existingCost !== undefined && existingCost <= totalCost) continue;
 
-      // Check if hex is occupied by friendly unit
-      const occupyingUnit = [...state.units.values()].find(u => hexEquals(u.hex, neighbor));
+      // Check if coord is occupied by friendly unit
+      const occupyingUnit = [...state.units.values()].find(u => coordEquals(u.coord, neighbor));
       if (occupyingUnit && occupyingUnit.owner === unit.owner) continue;
 
       visited.set(key, totalCost);
@@ -256,7 +256,7 @@ export function getValidMoves(state: GameState, unit: Unit): Hex[] {
       // Can move here if no enemy unit (attack is separate)
       if (!occupyingUnit) {
         validMoves.push(neighbor);
-        queue.push({ hex: neighbor, cost: totalCost });
+        queue.push({ coord: neighbor, cost: totalCost });
       }
     }
   }
@@ -264,35 +264,35 @@ export function getValidMoves(state: GameState, unit: Unit): Hex[] {
   return validMoves;
 }
 
-export function getValidAttacks(state: GameState, unit: Unit): Hex[] {
+export function getValidAttacks(state: GameState, unit: Unit): Coord[] {
   if (unit.hasAttacked) return [];
 
-  const attacks: Hex[] = [];
+  const attacks: Coord[] = [];
   const attackRange = unit.type === 'peltast' ? 2 : 1; // Peltast has 2-range
 
-  // Check all hexes within attack range
-  const hexesToCheck = attackRange === 1
-    ? hexNeighbors(unit.hex)
-    : hexesInRadius(unit.hex, attackRange).filter(h => !hexEquals(h, unit.hex));
+  // Check all coords within attack range
+  const coordsToCheck = attackRange === 1
+    ? neighbors(unit.coord)
+    : coordsInRadius(unit.coord, attackRange).filter(c => !coordEquals(c, unit.coord));
 
-  for (const targetHex of hexesToCheck) {
-    const dist = hexDistance(unit.hex, targetHex);
+  for (const targetCoord of coordsToCheck) {
+    const dist = coordDistance(unit.coord, targetCoord);
     if (dist > attackRange || dist === 0) continue;
 
     const enemyUnit = [...state.units.values()].find(
-      u => hexEquals(u.hex, targetHex) && u.owner !== unit.owner
+      u => coordEquals(u.coord, targetCoord) && u.owner !== unit.owner
     );
     if (enemyUnit) {
-      attacks.push(targetHex);
+      attacks.push(targetCoord);
     }
 
     // Melee units can capture cities, ranged cannot
     if (attackRange === 1) {
       const enemyCity = [...state.cities.values()].find(
-        c => hexEquals(c.hex, targetHex) && c.owner !== unit.owner
+        c => coordEquals(c.coord, targetCoord) && c.owner !== unit.owner
       );
       if (enemyCity) {
-        attacks.push(targetHex);
+        attacks.push(targetCoord);
       }
     }
   }
@@ -324,49 +324,49 @@ export function executeAction(state: GameState, action: GameAction): GameState {
       break;
 
     case 'move':
-      if (action.unitId && action.targetHex) {
+      if (action.unitId && action.targetCoord) {
         const unit = newState.units.get(action.unitId);
         if (unit) {
           const validMoves = getValidMoves(state, unit);
-          if (validMoves.some(h => hexEquals(h, action.targetHex!))) {
-            const targetTile = state.tiles.get(hexKey(action.targetHex));
+          if (validMoves.some(c => coordEquals(c, action.targetCoord!))) {
+            const targetTile = state.tiles.get(coordKey(action.targetCoord));
             const cost = targetTile ? getTerrainCost(targetTile.terrain) : 1;
 
             const updatedUnit: Unit = {
               ...unit,
-              hex: action.targetHex,
+              coord: action.targetCoord,
               movesLeft: Math.max(0, unit.movesLeft - cost)
             };
             newState.units.set(unit.id, updatedUnit);
 
             // Check for city capture: if moving onto a neutral village or undefended enemy city, capture it
-            const cityOnHex = [...newState.cities.values()].find(
-              c => hexEquals(c.hex, action.targetHex!) && c.owner !== unit.owner
+            const cityOnCoord = [...newState.cities.values()].find(
+              c => coordEquals(c.coord, action.targetCoord!) && c.owner !== unit.owner
             );
-            if (cityOnHex) {
+            if (cityOnCoord) {
               // Check if there's a defending unit (can't capture defended cities by moving)
               const hasDefender = [...newState.units.values()].some(
-                u => hexEquals(u.hex, action.targetHex!) && u.owner === cityOnHex.owner
+                u => coordEquals(u.coord, action.targetCoord!) && u.owner === cityOnCoord.owner
               );
 
               if (!hasDefender) {
                 // Capture city - assign to unit's owner
                 // If it's a village, give it a proper name
-                const isVillage = cityOnHex.owner === null;
+                const isVillage = cityOnCoord.owner === null;
                 const cityNameIndex = [...newState.cities.values()].filter(c => c.owner !== null).length;
-                const newName = isVillage ? GREEK_CITY_NAMES[cityNameIndex % GREEK_CITY_NAMES.length] : cityOnHex.name;
+                const newName = isVillage ? GREEK_CITY_NAMES[cityNameIndex % GREEK_CITY_NAMES.length] : cityOnCoord.name;
 
                 const capturedCity: City = {
-                  ...cityOnHex,
+                  ...cityOnCoord,
                   owner: unit.owner,
                   name: newName,
-                  level: isVillage ? 1 : cityOnHex.level,
-                  population: isVillage ? 0 : cityOnHex.population,
-                  territory: isVillage ? 1 : cityOnHex.territory,
+                  level: isVillage ? 1 : cityOnCoord.level,
+                  population: isVillage ? 0 : cityOnCoord.population,
+                  territory: isVillage ? 1 : cityOnCoord.territory,
                   isCapital: false, // Captured cities are never capitals
-                  bonuses: isVillage ? [] : cityOnHex.bonuses
+                  bonuses: isVillage ? [] : cityOnCoord.bonuses
                 };
-                newState.cities.set(cityOnHex.id, capturedCity);
+                newState.cities.set(cityOnCoord.id, capturedCity);
 
                 // Capturing a city ends the unit's turn
                 updatedUnit.movesLeft = 0;
@@ -380,11 +380,11 @@ export function executeAction(state: GameState, action: GameAction): GameState {
       break;
 
     case 'attack':
-      if (action.unitId && action.targetHex) {
+      if (action.unitId && action.targetCoord) {
         const attacker = newState.units.get(action.unitId);
         if (attacker) {
           const defender = [...newState.units.values()].find(
-            u => hexEquals(u.hex, action.targetHex!) && u.owner !== attacker.owner
+            u => coordEquals(u.coord, action.targetCoord!) && u.owner !== attacker.owner
           );
 
           if (defender) {
@@ -403,7 +403,7 @@ export function executeAction(state: GameState, action: GameAction): GameState {
             const damage = Math.max(1, attacker.attack - defenderDef);
 
             // Ranged attacks (peltast at range 2) don't trigger counterattack
-            const attackDist = hexDistance(attacker.hex, defender.hex);
+            const attackDist = coordDistance(attacker.coord, defender.coord);
             const isRangedAttack = attacker.type === 'peltast' && attackDist > 1;
             const counterDamage = isRangedAttack ? 0 : Math.max(0, Math.floor((defender.attack - attackerDef) / 2));
 
@@ -436,7 +436,7 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
           // Check if attacking a city
           const targetCity = [...newState.cities.values()].find(
-            c => hexEquals(c.hex, action.targetHex!) && c.owner !== attacker.owner
+            c => coordEquals(c.coord, action.targetCoord!) && c.owner !== attacker.owner
           );
 
           if (targetCity) {
@@ -471,7 +471,7 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
           // Heal units standing on friendly cities
           const friendlyCity = [...newState.cities.values()].find(
-            c => c.owner === unit.owner && hexEquals(c.hex, unit.hex)
+            c => c.owner === unit.owner && coordEquals(c.coord, unit.coord)
           );
           if (friendlyCity && unit.hp < unit.maxHp) {
             newHp = Math.min(unit.maxHp, unit.hp + 2); // Heal 2 HP per turn
@@ -557,25 +557,25 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
         if (player.drachma < unitCost) break;
 
-        // Find empty adjacent hex for the new unit
-        const adjacentHexes = hexNeighbors(city.hex);
-        const spawnHex = adjacentHexes.find(h => {
-          const tile = state.tiles.get(hexKey(h));
+        // Find empty adjacent coord for the new unit
+        const adjacentCoords = neighbors(city.coord);
+        const spawnCoord = adjacentCoords.find(c => {
+          const tile = state.tiles.get(coordKey(c));
           if (!tile) return false;
           // Land units can't spawn on water
           if (action.unitType !== 'trireme' && tile.terrain === 'water') return false;
           // Triremes need water
           if (action.unitType === 'trireme' && tile.terrain !== 'water') return false;
           // Check no unit already there
-          const occupied = [...state.units.values()].some(u => hexEquals(u.hex, h));
+          const occupied = [...state.units.values()].some(u => coordEquals(u.coord, c));
           return !occupied;
         });
 
-        if (!spawnHex) break; // No valid spawn location
+        if (!spawnCoord) break; // No valid spawn location
 
         player.drachma -= unitCost;
         const cityOwner = city.owner as PlayerId; // We've verified it's not null above
-        const newUnit = createUnit(action.unitType, cityOwner, spawnHex);
+        const newUnit = createUnit(action.unitType, cityOwner, spawnCoord);
         // New units can't move on the turn they're created
         newUnit.movesLeft = 0;
         newUnit.hasAttacked = true;
@@ -588,15 +588,15 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
     case 'harvest':
       // Harvest a resource from a tile in your territory
-      if (action.targetHex) {
+      if (action.targetCoord) {
         const playerId = state.phase === 'player_turn' ? 0 : 1;
-        const targetKey = hexKey(action.targetHex);
+        const targetKey = coordKey(action.targetCoord);
         const tile = newState.tiles.get(targetKey);
 
         if (!tile || tile.harvested) break;
 
-        // Find which city owns this hex
-        const owningCity = getCityOwningHex(newState, action.targetHex);
+        // Find which city owns this coord
+        const owningCity = getCityOwningCoord(newState, action.targetCoord);
         if (!owningCity || owningCity.owner !== playerId) break;
 
         // Calculate population gain based on terrain
@@ -610,7 +610,7 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
         // Water tiles must be adjacent to a city to fish
         if (tile.terrain === 'water') {
-          const isAdjacentToCity = hexDistance(action.targetHex, owningCity.hex) === 1;
+          const isAdjacentToCity = coordDistance(action.targetCoord, owningCity.coord) === 1;
           if (!isAdjacentToCity) break;
         }
 

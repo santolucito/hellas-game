@@ -1,4 +1,4 @@
-import { GameState, hexEquals, hexKey } from './game/types';
+import { GameState, coordEquals, coordKey } from './game/types';
 import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, TECHS, UNIT_COSTS } from './game/state';
 import { Renderer } from './ui/renderer';
 import { runAI } from './ai/opponent';
@@ -89,16 +89,16 @@ class Game {
   private handleTap(x: number, y: number): void {
     if (this.state.phase !== 'player_turn') return;
 
-    const hex = this.renderer.getHexAtPixel(x, y);
+    const coord = this.renderer.getCoordAtPixel(x, y);
 
     // Check if tapping on own unit
     const tappedUnit = [...this.state.units.values()].find(
-      u => hexEquals(u.hex, hex) && u.owner === 0
+      u => coordEquals(u.coord, coord) && u.owner === 0
     );
 
     // Check if tapping on own city
     const tappedCity = [...this.state.cities.values()].find(
-      c => hexEquals(c.hex, hex) && c.owner === 0
+      c => coordEquals(c.coord, coord) && c.owner === 0
     );
 
     if (tappedUnit) {
@@ -122,27 +122,27 @@ class Game {
 
       // Check if valid move
       const validMoves = getValidMoves(this.state, selectedUnit);
-      if (validMoves.some(h => hexEquals(h, hex))) {
+      if (validMoves.some(c => coordEquals(c, coord))) {
         this.state = executeAction(this.state, {
           type: 'move',
           unitId: selectedUnit.id,
-          targetHex: hex
+          targetCoord: coord
         });
       }
 
       // Check if valid attack
       const validAttacks = getValidAttacks(this.state, selectedUnit);
-      if (validAttacks.some(h => hexEquals(h, hex))) {
+      if (validAttacks.some(c => coordEquals(c, coord))) {
         this.state = executeAction(this.state, {
           type: 'attack',
           unitId: selectedUnit.id,
-          targetHex: hex
+          targetCoord: coord
         });
       }
     } else {
       // Check if clicking on a harvestable tile in player territory
-      const harvestableHexes = getHarvestableTiles(this.state, 0);
-      const isHarvestable = harvestableHexes.some(h => hexEquals(h, hex));
+      const harvestableCoords = getHarvestableTiles(this.state, 0);
+      const isHarvestable = harvestableCoords.some(c => coordEquals(c, coord));
 
       if (isHarvestable) {
         // Track city levels before harvest to detect level-ups
@@ -153,7 +153,7 @@ class Game {
           }
         }
 
-        this.state = executeAction(this.state, { type: 'harvest', targetHex: hex });
+        this.state = executeAction(this.state, { type: 'harvest', targetCoord: coord });
 
         // Check for level-ups
         for (const [id, city] of this.state.cities) {
@@ -191,8 +191,8 @@ class Game {
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const hex = this.renderer.getHexAtPixel(x, y);
-    const key = hexKey(hex);
+    const coord = this.renderer.getCoordAtPixel(x, y);
+    const key = coordKey(coord);
 
     const tile = this.state.tiles.get(key);
     if (!tile || !this.state.discovered.has(key)) {
@@ -202,10 +202,10 @@ class Game {
 
     const tooltip = document.getElementById('tooltip')!;
     let content = `<strong>${tile.terrain.charAt(0).toUpperCase() + tile.terrain.slice(1)}</strong>`;
-    content += `<br>Position: (${hex.q}, ${hex.r})`;
+    content += `<br>Position: (${coord.q}, ${coord.r})`;
 
     // Check for city/village
-    const city = [...this.state.cities.values()].find(c => hexEquals(c.hex, hex));
+    const city = [...this.state.cities.values()].find(c => coordEquals(c.coord, coord));
     if (city && this.state.visible.has(key)) {
       const isVillage = city.owner === null;
       content += `<br><br><strong>${isVillage ? 'Village' : city.name}</strong>`;
@@ -221,7 +221,7 @@ class Game {
     }
 
     // Check for unit (only if visible)
-    const unit = [...this.state.units.values()].find(u => hexEquals(u.hex, hex));
+    const unit = [...this.state.units.values()].find(u => coordEquals(u.coord, coord));
     if (unit && (unit.owner === 0 || this.state.visible.has(key))) {
       content += `<br><br><strong>${unit.type.charAt(0).toUpperCase() + unit.type.slice(1)}</strong>`;
       content += `<br>HP: ${unit.hp}/${unit.maxHp}`;
@@ -389,7 +389,7 @@ class Game {
         break;
       case 'explorer':
         // Reveal fog in radius 3 around city
-        this.revealFogAroundCity(city.hex, 4);
+        this.revealFogAroundCity(city.coord, 4);
         break;
       case 'stars':
         this.state.players[0].drachma += 5;
@@ -415,11 +415,11 @@ class Game {
     this.updateHUD();
   }
 
-  private revealFogAroundCity(hex: { q: number; r: number }, radius: number): void {
-    // Reveal fog in radius around city
-    for (let q = -radius; q <= radius; q++) {
-      for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-        const key = `${hex.q + q},${hex.r + r}`;
+  private revealFogAroundCity(coord: { q: number; r: number }, radius: number): void {
+    // Reveal fog in radius around city (square grid using Chebyshev distance)
+    for (let dq = -radius; dq <= radius; dq++) {
+      for (let dr = -radius; dr <= radius; dr++) {
+        const key = `${coord.q + dq},${coord.r + dr}`;
         if (this.state.tiles.has(key)) {
           this.state.discovered.add(key);
         }
@@ -427,26 +427,28 @@ class Game {
     }
   }
 
-  private spawnGiantUnit(city: { hex: { q: number; r: number }; owner: 0 | 1 | null }): void {
+  private spawnGiantUnit(city: { coord: { q: number; r: number }; owner: 0 | 1 | null }): void {
     if (city.owner === null) return;
-    // Find adjacent hex for giant
+    // Find adjacent coord for giant (4 cardinal directions)
     const directions = [
-      { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
-      { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }
+      { q: 0, r: -1 },  // North
+      { q: 1, r: 0 },   // East
+      { q: 0, r: 1 },   // South
+      { q: -1, r: 0 }   // West
     ];
     for (const d of directions) {
-      const spawnHex = { q: city.hex.q + d.q, r: city.hex.r + d.r };
-      const key = `${spawnHex.q},${spawnHex.r}`;
+      const spawnCoord = { q: city.coord.q + d.q, r: city.coord.r + d.r };
+      const key = `${spawnCoord.q},${spawnCoord.r}`;
       const tile = this.state.tiles.get(key);
       if (tile && tile.terrain !== 'water') {
-        const occupied = [...this.state.units.values()].some(u => u.hex.q === spawnHex.q && u.hex.r === spawnHex.r);
+        const occupied = [...this.state.units.values()].some(u => u.coord.q === spawnCoord.q && u.coord.r === spawnCoord.r);
         if (!occupied) {
           // Create giant hoplite (stronger stats)
           const giant = {
             id: `unit_giant_${Date.now()}`,
             type: 'hoplite' as const,
             owner: city.owner,
-            hex: spawnHex,
+            coord: spawnCoord,
             hp: 20,
             maxHp: 20,
             attack: 5,
@@ -481,7 +483,7 @@ class Game {
 
     const selectedUnit = this.state.selectedUnitId ? this.state.units.get(this.state.selectedUnitId) : null;
     if (selectedUnit) {
-      document.getElementById('debug-tile')!.textContent = `Unit at ${selectedUnit.hex.q},${selectedUnit.hex.r}`;
+      document.getElementById('debug-tile')!.textContent = `Unit at ${selectedUnit.coord.q},${selectedUnit.coord.r}`;
     } else {
       document.getElementById('debug-tile')!.textContent = '-';
     }

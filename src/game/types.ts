@@ -1,13 +1,13 @@
-// Hex axial coordinates
-export interface Hex {
-  q: number;
-  r: number;
+// Square grid coordinates (isometric)
+export interface Coord {
+  q: number;  // x coordinate
+  r: number;  // y coordinate
 }
 
 export type Terrain = 'plains' | 'forest' | 'hills' | 'water';
 
 export interface Tile {
-  hex: Hex;
+  coord: Coord;
   terrain: Terrain;
   harvested: boolean; // Whether resources have been harvested from this tile
 }
@@ -19,7 +19,7 @@ export interface Unit {
   id: string;
   type: 'hoplite' | 'peltast' | 'trireme';
   owner: PlayerId;
-  hex: Hex;
+  coord: Coord;
   hp: number;
   maxHp: number;
   attack: number;
@@ -33,7 +33,7 @@ export interface City {
   id: string;
   name: string;
   owner: OwnerId; // null = neutral village
-  hex: Hex;
+  coord: Coord;
   level: number;
   population: number; // Current population progress toward next level
   territory: number; // Territory radius (1 = adjacent tiles, 2 = expanded)
@@ -45,7 +45,7 @@ export type CityBonus = 'workshop' | 'walls' | 'border_growth';
 
 export interface Village {
   id: string;
-  hex: Hex;
+  coord: Coord;
   // Villages are essentially cities with owner: null
 }
 
@@ -77,9 +77,9 @@ export interface GameState {
   players: [Player, Player];
   selectedUnitId: string | null;
   selectedCityId: string | null;
-  // Fog of war: set of hex keys that player has discovered
+  // Fog of war: set of coord keys that player has discovered
   discovered: Set<string>;
-  // Currently visible hexes (units in vision range)
+  // Currently visible coords (units in vision range)
   visible: Set<string>;
 }
 
@@ -87,52 +87,48 @@ export interface GameAction {
   type: 'select' | 'move' | 'attack' | 'end_turn' | 'research' | 'train' | 'select_city' | 'harvest' | 'choose_bonus';
   unitId?: string;
   cityId?: string;
-  targetHex?: Hex;
+  targetCoord?: Coord;
   techId?: TechId;
   unitType?: Unit['type'];
   bonus?: CityBonus; // For choose_bonus action
 }
 
-// Hex utility
-export function hexKey(hex: Hex): string {
-  return `${hex.q},${hex.r}`;
+// Grid utility - using q as x, r as y for square grid
+export function coordKey(coord: Coord): string {
+  return `${coord.q},${coord.r}`;
 }
 
-export function parseHexKey(key: string): Hex {
+export function parseCoordKey(key: string): Coord {
   const [q, r] = key.split(',').map(Number);
   return { q, r };
 }
 
-export function hexEquals(a: Hex, b: Hex): boolean {
+export function coordEquals(a: Coord, b: Coord): boolean {
   return a.q === b.q && a.r === b.r;
 }
 
-// Cube coordinates for distance calculation
-export function hexToCube(hex: Hex): { x: number; y: number; z: number } {
-  return { x: hex.q, y: -hex.q - hex.r, z: hex.r };
+// Chebyshev distance for square grid (king's move distance)
+export function coordDistance(a: Coord, b: Coord): number {
+  return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r));
 }
 
-export function hexDistance(a: Hex, b: Hex): number {
-  const ac = hexToCube(a);
-  const bc = hexToCube(b);
-  return Math.max(Math.abs(ac.x - bc.x), Math.abs(ac.y - bc.y), Math.abs(ac.z - bc.z));
-}
-
-// Get all 6 neighbors of a hex
-export function hexNeighbors(hex: Hex): Hex[] {
+// Get all 4 cardinal neighbors (N, E, S, W) - Polytopia style
+export function neighbors(coord: Coord): Coord[] {
   const directions = [
-    { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
-    { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }
+    { q: 0, r: -1 },  // North
+    { q: 1, r: 0 },   // East
+    { q: 0, r: 1 },   // South
+    { q: -1, r: 0 }   // West
   ];
-  return directions.map(d => ({ q: hex.q + d.q, r: hex.r + d.r }));
+  return directions.map(d => ({ q: coord.q + d.q, r: coord.r + d.r }));
 }
 
-// Get all hexes within radius
-export function hexesInRadius(center: Hex, radius: number): Hex[] {
-  const results: Hex[] = [];
-  for (let q = -radius; q <= radius; q++) {
-    for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
-      results.push({ q: center.q + q, r: center.r + r });
+// Get all tiles within radius (square area using Chebyshev distance)
+export function coordsInRadius(center: Coord, radius: number): Coord[] {
+  const results: Coord[] = [];
+  for (let dq = -radius; dq <= radius; dq++) {
+    for (let dr = -radius; dr <= radius; dr++) {
+      results.push({ q: center.q + dq, r: center.r + dr });
     }
   }
   return results;

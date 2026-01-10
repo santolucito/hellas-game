@@ -1,9 +1,10 @@
-import { GameState, Hex, hexKey, Unit, City, hexesInRadius } from '../game/types';
+import { GameState, Coord, coordKey, Unit, City, coordsInRadius } from '../game/types';
 import { getValidMoves, getValidAttacks, getHarvestableTiles } from '../game/state';
 
-// Tile rendering constants - Polytopia style
-const TILE_SIZE = 48; // Base tile size
-const TILE_HEIGHT = 12; // Depth of tile sides
+// Tile rendering constants - Polytopia style isometric
+const TILE_WIDTH = 64;  // Width of isometric diamond
+const TILE_HEIGHT_HALF = 32; // Half height of diamond (isometric foreshortening)
+const TILE_DEPTH = 16; // Depth of tile sides for 3D effect
 
 // Polytopia-style color palette - soft, saturated pastels
 const COLORS = {
@@ -19,9 +20,16 @@ const COLORS = {
   hillsSide: '#a08050',
   waterSide: '#3080b0',
 
+  // Even darker for left side
+  plainsSideLeft: '#4a8028',
+  forestSideLeft: '#246020',
+  hillsSideLeft: '#907040',
+  waterSideLeft: '#2870a0',
+
   // UI colors
   fog: '#1e3a5f',         // Dark blue fog
   unexplored: '#2a4a6f',  // Slightly lighter unexplored
+  unexploredSide: '#1a3050',
   player: '#5bc0eb',      // Bright cyan-blue
   playerDark: '#3a9fc8',
   enemy: '#f25c54',       // Coral red
@@ -201,10 +209,10 @@ export class Renderer {
     // Center the map (only on initial load)
     if (this.offsetX === 0 && this.offsetY === 0) {
       this.offsetX = this.width / 2;
-      this.offsetY = this.height / 2;
+      this.offsetY = this.height / 4;
     }
 
-    // Auto-scale based on screen size (smaller screens = smaller hexes)
+    // Auto-scale based on screen size
     this.baseScale = Math.min(this.width, this.height) / 600;
     this.baseScale = Math.max(0.5, Math.min(1.5, this.baseScale));
     if (this.scale === 1) {
@@ -212,17 +220,20 @@ export class Renderer {
     }
   }
 
-  private hexToPixel(hex: Hex): { x: number; y: number } {
-    // Isometric-style hex positioning
-    const x = TILE_SIZE * (3 / 2 * hex.q) * this.scale;
-    const y = TILE_SIZE * (Math.sqrt(3) / 2 * hex.q + Math.sqrt(3) * hex.r) * this.scale;
+  // Convert grid coordinates to screen pixels (isometric projection)
+  private coordToPixel(coord: Coord): { x: number; y: number } {
+    // Isometric transformation:
+    // - q axis goes down-right
+    // - r axis goes down-left
+    const x = (coord.q - coord.r) * (TILE_WIDTH / 2) * this.scale;
+    const y = (coord.q + coord.r) * (TILE_HEIGHT_HALF / 2) * this.scale;
     return { x: x + this.offsetX, y: y + this.offsetY };
   }
 
   // Get terrain elevation for 3D effect
   private getTerrainElevation(terrain: string): number {
     switch (terrain) {
-      case 'water': return -8;
+      case 'water': return -6;
       case 'plains': return 0;
       case 'forest': return 4;
       case 'hills': return 10;
@@ -230,114 +241,94 @@ export class Renderer {
     }
   }
 
-  // Get side color for terrain
+  // Get side color for terrain (right side - brighter)
   private getSideColor(terrain: string): string {
     return COLORS[`${terrain}Side` as keyof typeof COLORS] as string || COLORS.plainsSide;
   }
 
-  pixelToHex(px: number, py: number): Hex {
-    const x = (px - this.offsetX) / this.scale;
-    const y = (py - this.offsetY) / this.scale;
-
-    const q = (2 / 3 * x) / TILE_SIZE;
-    const r = (-1 / 3 * x + Math.sqrt(3) / 3 * y) / TILE_SIZE;
-
-    // Round to nearest hex
-    return this.hexRound(q, r);
+  // Get left side color for terrain (darker)
+  private getLeftSideColor(terrain: string): string {
+    return COLORS[`${terrain}SideLeft` as keyof typeof COLORS] as string || COLORS.plainsSideLeft;
   }
 
-  private hexRound(q: number, r: number): Hex {
-    const s = -q - r;
+  // Convert screen pixels to grid coordinates (inverse isometric)
+  pixelToCoord(px: number, py: number): Coord {
+    const screenX = (px - this.offsetX) / this.scale;
+    const screenY = (py - this.offsetY) / this.scale;
 
-    let rq = Math.round(q);
-    let rr = Math.round(r);
-    const rs = Math.round(s);
+    // Inverse isometric transformation
+    const q = (screenX / (TILE_WIDTH / 2) + screenY / (TILE_HEIGHT_HALF / 2)) / 2;
+    const r = (screenY / (TILE_HEIGHT_HALF / 2) - screenX / (TILE_WIDTH / 2)) / 2;
 
-    const qDiff = Math.abs(rq - q);
-    const rDiff = Math.abs(rr - r);
-    const sDiff = Math.abs(rs - s);
-
-    if (qDiff > rDiff && qDiff > sDiff) {
-      rq = -rr - rs;
-    } else if (rDiff > sDiff) {
-      rr = -rq - rs;
-    }
-
-    return { q: rq, r: rr };
+    return { q: Math.round(q), r: Math.round(r) };
   }
 
-  // Draw a chunky isometric hex tile with depth - Polytopia style
-  private drawChunkyTile(x: number, y: number, size: number, elevation: number, topColor: string, sideColor: string, isHighlight: boolean = false): void {
+  // Draw a chunky isometric diamond tile with depth - Polytopia style
+  private drawChunkyTile(x: number, y: number, elevation: number, topColor: string, rightSideColor: string, leftSideColor: string): void {
     const { ctx } = this;
-    const h = TILE_HEIGHT * this.scale + elevation * this.scale;
+    const w = (TILE_WIDTH / 2) * this.scale;
+    const h = (TILE_HEIGHT_HALF / 2) * this.scale;
+    const depth = TILE_DEPTH * this.scale + elevation * this.scale * 0.5;
 
-    // Get hex corner points for the top face
-    const topPoints: { x: number; y: number }[] = [];
-    for (let i = 0; i < 6; i++) {
-      const angle = (Math.PI / 3) * i;
-      topPoints.push({
-        x: x + size * Math.cos(angle),
-        y: y - elevation * this.scale + size * Math.sin(angle)
-      });
-    }
+    // Adjust y for elevation
+    const topY = y - elevation * this.scale;
 
-    // Draw the side faces (only visible ones - bottom 3 sides)
-    // Side faces go from bottom of top face down by TILE_HEIGHT
-    ctx.fillStyle = sideColor;
+    // Diamond vertices (top face)
+    const north = { x: x, y: topY - h };
+    const east = { x: x + w, y: topY };
+    const south = { x: x, y: topY + h };
+    const west = { x: x - w, y: topY };
 
-    // Draw sides 2, 3, 4 (the visible bottom-facing sides)
-    for (let i = 2; i <= 4; i++) {
-      const p1 = topPoints[i];
-      const p2 = topPoints[(i + 1) % 6];
-
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.lineTo(p2.x, p2.y + h);
-      ctx.lineTo(p1.x, p1.y + h);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Draw the top face
+    // Draw right side face (east to south)
+    ctx.fillStyle = rightSideColor;
     ctx.beginPath();
-    ctx.moveTo(topPoints[0].x, topPoints[0].y);
-    for (let i = 1; i < 6; i++) {
-      ctx.lineTo(topPoints[i].x, topPoints[i].y);
-    }
+    ctx.moveTo(east.x, east.y);
+    ctx.lineTo(south.x, south.y);
+    ctx.lineTo(south.x, south.y + depth);
+    ctx.lineTo(east.x, east.y + depth);
     ctx.closePath();
-    ctx.fillStyle = topColor;
     ctx.fill();
 
-    // Highlight overlay for selection/valid moves
-    if (isHighlight) {
-      ctx.fillStyle = topColor;
-      ctx.fill();
-    }
+    // Draw left side face (south to west)
+    ctx.fillStyle = leftSideColor;
+    ctx.beginPath();
+    ctx.moveTo(south.x, south.y);
+    ctx.lineTo(west.x, west.y);
+    ctx.lineTo(west.x, west.y + depth);
+    ctx.lineTo(south.x, south.y + depth);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw top face (diamond)
+    ctx.fillStyle = topColor;
+    ctx.beginPath();
+    ctx.moveTo(north.x, north.y);
+    ctx.lineTo(east.x, east.y);
+    ctx.lineTo(south.x, south.y);
+    ctx.lineTo(west.x, west.y);
+    ctx.closePath();
+    ctx.fill();
   }
 
-  // Simple flat hex for overlays (valid moves, attacks)
-  private drawHexOverlay(x: number, y: number, size: number, color: string): void {
+  // Simple flat diamond for overlays (valid moves, attacks)
+  private drawTileOverlay(x: number, y: number, sizeFactor: number, color: string): void {
     const { ctx } = this;
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const angle = (Math.PI / 3) * i;
-      const hx = x + size * Math.cos(angle);
-      const hy = y + size * Math.sin(angle);
-      if (i === 0) {
-        ctx.moveTo(hx, hy);
-      } else {
-        ctx.lineTo(hx, hy);
-      }
-    }
-    ctx.closePath();
+    const w = (TILE_WIDTH / 2) * this.scale * sizeFactor;
+    const h = (TILE_HEIGHT_HALF / 2) * this.scale * sizeFactor;
+
     ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - h);      // North
+    ctx.lineTo(x + w, y);      // East
+    ctx.lineTo(x, y + h);      // South
+    ctx.lineTo(x - w, y);      // West
+    ctx.closePath();
     ctx.fill();
   }
 
   private drawUnit(x: number, y: number, unit: Unit, isSelected: boolean, hasPhalanx: boolean = false, isOnFriendlyCity: boolean = false, elevation: number = 0): void {
     const { ctx } = this;
-    const size = TILE_SIZE * 0.4 * this.scale;
+    const size = TILE_WIDTH * 0.25 * this.scale;
     const color = unit.owner === 0 ? COLORS.player : COLORS.enemy;
 
     // Adjust y for terrain elevation
@@ -409,7 +400,7 @@ export class Renderer {
 
   private drawCity(x: number, y: number, city: City, elevation: number = 0): void {
     const { ctx } = this;
-    const size = TILE_SIZE * 0.5 * this.scale;
+    const size = TILE_WIDTH * 0.3 * this.scale;
 
     // Determine colors based on owner
     const isVillage = city.owner === null;
@@ -500,20 +491,21 @@ export class Renderer {
     const validMoves = selectedUnit ? getValidMoves(state, selectedUnit) : [];
     const validAttacks = selectedUnit ? getValidAttacks(state, selectedUnit) : [];
 
-    // Sort tiles by row for proper z-ordering (draw from back to front)
+    // Sort tiles by depth for proper z-ordering (draw from back to front)
+    // In isometric view, tiles with lower (q + r) should be drawn first
     const sortedTiles = [...state.tiles.entries()].sort((a, b) => {
-      const rowA = a[1].hex.r + a[1].hex.q * 0.5;
-      const rowB = b[1].hex.r + b[1].hex.q * 0.5;
-      return rowA - rowB;
+      const depthA = a[1].coord.q + a[1].coord.r;
+      const depthB = b[1].coord.q + b[1].coord.r;
+      return depthA - depthB;
     });
 
     // Build territory map for owned cities
-    const territoryMap = new Map<string, 0 | 1>(); // hex key -> owner
+    const territoryMap = new Map<string, 0 | 1>(); // coord key -> owner
     for (const city of state.cities.values()) {
       if (city.owner !== null) {
-        const territoryHexes = hexesInRadius(city.hex, city.territory);
-        for (const hex of territoryHexes) {
-          const key = hexKey(hex);
+        const territoryCoords = coordsInRadius(city.coord, city.territory);
+        for (const coord of territoryCoords) {
+          const key = coordKey(coord);
           if (state.tiles.has(key)) {
             territoryMap.set(key, city.owner);
           }
@@ -523,8 +515,7 @@ export class Renderer {
 
     // Draw tiles with chunky isometric style
     for (const [key, tile] of sortedTiles) {
-      const { x, y } = this.hexToPixel(tile.hex);
-      const size = TILE_SIZE * this.scale;
+      const { x, y } = this.coordToPixel(tile.coord);
       const elevation = this.getTerrainElevation(tile.terrain);
 
       const isDiscovered = state.discovered.has(key);
@@ -532,36 +523,38 @@ export class Renderer {
 
       if (!isDiscovered) {
         // Unexplored - dark chunky tile
-        this.drawChunkyTile(x, y, size, 0, COLORS.unexplored, '#1a3050');
+        this.drawChunkyTile(x, y, 0, COLORS.unexplored, COLORS.unexploredSide, '#152535');
       } else if (!isVisible) {
         // Discovered but not in current vision - dimmed
         const topColor = this.dimColor(COLORS[tile.terrain as keyof typeof COLORS] as string);
         const sideColor = this.dimColor(this.getSideColor(tile.terrain));
-        this.drawChunkyTile(x, y, size, elevation, topColor, sideColor);
+        const leftSideColor = this.dimColor(this.getLeftSideColor(tile.terrain));
+        this.drawChunkyTile(x, y, elevation, topColor, sideColor, leftSideColor);
       } else {
         // Fully visible - bright chunky tile
         const topColor = COLORS[tile.terrain as keyof typeof COLORS] as string;
         const sideColor = this.getSideColor(tile.terrain);
-        this.drawChunkyTile(x, y, size, elevation, topColor, sideColor);
+        const leftSideColor = this.getLeftSideColor(tile.terrain);
+        this.drawChunkyTile(x, y, elevation, topColor, sideColor, leftSideColor);
 
         // Draw terrain decorations
-        this.drawTerrainDecoration(x, y - elevation * this.scale, tile.terrain, size);
+        this.drawTerrainDecoration(x, y - elevation * this.scale, tile.terrain);
       }
 
       // Draw territory overlay if this tile is in someone's territory and visible
       if (isVisible && territoryMap.has(key)) {
         const owner = territoryMap.get(key)!;
         const territoryColor = owner === 0 ? COLORS.playerTerritory : COLORS.enemyTerritory;
-        this.drawHexOverlay(x, y - elevation * this.scale, size * 0.95, territoryColor);
+        this.drawTileOverlay(x, y - elevation * this.scale, 0.9, territoryColor);
       }
 
       // Draw harvested indicator for depleted resource tiles
       if (isVisible && tile.harvested && (tile.terrain === 'forest' || tile.terrain === 'hills' || tile.terrain === 'water')) {
         const adjustedY = y - elevation * this.scale;
         // Gray overlay to show depletion
-        this.drawHexOverlay(x, adjustedY, size * 0.7, COLORS.harvested);
+        this.drawTileOverlay(x, adjustedY, 0.7, COLORS.harvested);
         // Small "depleted" icon
-        this.ctx.font = `${TILE_SIZE * 0.25 * this.scale}px sans-serif`;
+        this.ctx.font = `${TILE_WIDTH * 0.15 * this.scale}px sans-serif`;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
@@ -570,36 +563,36 @@ export class Renderer {
     }
 
     // Draw valid move highlights (overlay on top of tiles)
-    for (const hex of validMoves) {
-      const { x, y } = this.hexToPixel(hex);
-      const tile = state.tiles.get(hexKey(hex));
+    for (const coord of validMoves) {
+      const { x, y } = this.coordToPixel(coord);
+      const tile = state.tiles.get(coordKey(coord));
       const elevation = tile ? this.getTerrainElevation(tile.terrain) : 0;
-      this.drawHexOverlay(x, y - elevation * this.scale, TILE_SIZE * this.scale * 0.85, COLORS.validMove);
+      this.drawTileOverlay(x, y - elevation * this.scale, 0.85, COLORS.validMove);
     }
 
     // Draw valid attack highlights
-    for (const hex of validAttacks) {
-      const { x, y } = this.hexToPixel(hex);
-      const tile = state.tiles.get(hexKey(hex));
+    for (const coord of validAttacks) {
+      const { x, y } = this.coordToPixel(coord);
+      const tile = state.tiles.get(coordKey(coord));
       const elevation = tile ? this.getTerrainElevation(tile.terrain) : 0;
-      this.drawHexOverlay(x, y - elevation * this.scale, TILE_SIZE * this.scale * 0.85, COLORS.validAttack);
+      this.drawTileOverlay(x, y - elevation * this.scale, 0.85, COLORS.validAttack);
     }
 
     // Draw harvestable tile highlights (only when no unit selected during player turn)
     if (!selectedUnit && state.phase === 'player_turn') {
-      const harvestableHexes = getHarvestableTiles(state, 0);
-      for (const hex of harvestableHexes) {
-        const key = hexKey(hex);
+      const harvestableCoords = getHarvestableTiles(state, 0);
+      for (const coord of harvestableCoords) {
+        const key = coordKey(coord);
         if (!state.visible.has(key)) continue;
 
-        const { x, y } = this.hexToPixel(hex);
+        const { x, y } = this.coordToPixel(coord);
         const tile = state.tiles.get(key);
         const elevation = tile ? this.getTerrainElevation(tile.terrain) : 0;
-        this.drawHexOverlay(x, y - elevation * this.scale, TILE_SIZE * this.scale * 0.8, COLORS.harvestable);
+        this.drawTileOverlay(x, y - elevation * this.scale, 0.8, COLORS.harvestable);
 
         // Draw resource icon
         const adjustedY = y - elevation * this.scale;
-        this.ctx.font = `bold ${TILE_SIZE * 0.4 * this.scale}px sans-serif`;
+        this.ctx.font = `bold ${TILE_WIDTH * 0.25 * this.scale}px sans-serif`;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         const resourceIcon = tile?.terrain === 'forest' ? '🦌' : tile?.terrain === 'hills' ? '⛏' : '🐟';
@@ -607,18 +600,18 @@ export class Renderer {
       }
     }
 
-    // Draw cities (only if visible), sorted by row
+    // Draw cities (only if visible), sorted by depth
     const sortedCities = [...state.cities.values()].sort((a, b) => {
-      const rowA = a.hex.r + a.hex.q * 0.5;
-      const rowB = b.hex.r + b.hex.q * 0.5;
-      return rowA - rowB;
+      const depthA = a.coord.q + a.coord.r;
+      const depthB = b.coord.q + b.coord.r;
+      return depthA - depthB;
     });
 
     for (const city of sortedCities) {
-      const key = hexKey(city.hex);
+      const key = coordKey(city.coord);
       if (!state.visible.has(key)) continue;
 
-      const { x, y } = this.hexToPixel(city.hex);
+      const { x, y } = this.coordToPixel(city.coord);
       const tile = state.tiles.get(key);
       const elevation = tile ? this.getTerrainElevation(tile.terrain) : 0;
       this.drawCity(x, y, city, elevation);
@@ -627,19 +620,19 @@ export class Renderer {
     // Increment animation frame
     this.healAnimFrame++;
 
-    // Draw units (only if visible), sorted by row
+    // Draw units (only if visible), sorted by depth
     const sortedUnits = [...state.units.values()].sort((a, b) => {
-      const rowA = a.hex.r + a.hex.q * 0.5;
-      const rowB = b.hex.r + b.hex.q * 0.5;
-      return rowA - rowB;
+      const depthA = a.coord.q + a.coord.r;
+      const depthB = b.coord.q + b.coord.r;
+      return depthA - depthB;
     });
 
     for (const unit of sortedUnits) {
-      const key = hexKey(unit.hex);
+      const key = coordKey(unit.coord);
       // Only show units in visible range, OR always show player units
       if (unit.owner !== 0 && !state.visible.has(key)) continue;
 
-      const { x, y } = this.hexToPixel(unit.hex);
+      const { x, y } = this.coordToPixel(unit.coord);
       const isSelected = state.selectedUnitId === unit.id;
       const hasPhalanx = unit.type === 'hoplite' && state.players[unit.owner].techs.includes('phalanx');
 
@@ -649,7 +642,7 @@ export class Renderer {
 
       // Check if unit is on a friendly city (for healing indicator)
       const isOnFriendlyCity = [...state.cities.values()].some(
-        c => c.owner === unit.owner && c.hex.q === unit.hex.q && c.hex.r === unit.hex.r
+        c => c.owner === unit.owner && c.coord.q === unit.coord.q && c.coord.r === unit.coord.r
       );
 
       this.drawUnit(x, y, unit, isSelected, hasPhalanx, isOnFriendlyCity, elevation);
@@ -657,11 +650,11 @@ export class Renderer {
 
     // Draw selection indicator on selected unit (pulsing ring)
     if (selectedUnit) {
-      const { x, y } = this.hexToPixel(selectedUnit.hex);
-      const tile = state.tiles.get(hexKey(selectedUnit.hex));
+      const { x, y } = this.coordToPixel(selectedUnit.coord);
+      const tile = state.tiles.get(coordKey(selectedUnit.coord));
       const elevation = tile ? this.getTerrainElevation(tile.terrain) : 0;
       const adjustedY = y - elevation * this.scale;
-      const pulseSize = TILE_SIZE * this.scale * 0.7 + Math.sin(this.healAnimFrame * 0.08) * 3;
+      const pulseSize = TILE_WIDTH * this.scale * 0.4 + Math.sin(this.healAnimFrame * 0.08) * 3;
 
       ctx.beginPath();
       ctx.arc(x, adjustedY, pulseSize, 0, Math.PI * 2);
@@ -672,29 +665,29 @@ export class Renderer {
   }
 
   // Draw terrain decorations (trees, rocks, etc.)
-  private drawTerrainDecoration(x: number, y: number, terrain: string, size: number): void {
+  private drawTerrainDecoration(x: number, y: number, terrain: string): void {
     const { ctx } = this;
+    const size = TILE_WIDTH * 0.5 * this.scale;
 
     if (terrain === 'forest') {
       // Draw simple tree shapes
-      ctx.fillStyle = '#2d5a30';
-      const treeSize = size * 0.25;
+      const treeSize = size * 0.3;
 
       // Multiple small trees
-      for (let i = 0; i < 3; i++) {
-        const tx = x + (i - 1) * treeSize * 0.8;
-        const ty = y - treeSize * 0.3 + (i % 2) * treeSize * 0.2;
+      for (let i = 0; i < 2; i++) {
+        const tx = x + (i - 0.5) * treeSize * 0.8;
+        const ty = y - treeSize * 0.2 + (i % 2) * treeSize * 0.1;
 
         // Tree trunk
         ctx.fillStyle = '#5d4e37';
-        ctx.fillRect(tx - treeSize * 0.1, ty, treeSize * 0.2, treeSize * 0.4);
+        ctx.fillRect(tx - treeSize * 0.08, ty, treeSize * 0.16, treeSize * 0.3);
 
         // Tree top (triangle)
         ctx.fillStyle = '#2d6830';
         ctx.beginPath();
-        ctx.moveTo(tx, ty - treeSize * 0.6);
-        ctx.lineTo(tx - treeSize * 0.35, ty + treeSize * 0.1);
-        ctx.lineTo(tx + treeSize * 0.35, ty + treeSize * 0.1);
+        ctx.moveTo(tx, ty - treeSize * 0.5);
+        ctx.lineTo(tx - treeSize * 0.25, ty + treeSize * 0.05);
+        ctx.lineTo(tx + treeSize * 0.25, ty + treeSize * 0.05);
         ctx.closePath();
         ctx.fill();
       }
@@ -704,11 +697,11 @@ export class Renderer {
       const rockSize = size * 0.15;
 
       for (let i = 0; i < 2; i++) {
-        const rx = x + (i - 0.5) * rockSize * 1.5;
-        const ry = y - rockSize * 0.2;
+        const rx = x + (i - 0.5) * rockSize * 1.2;
+        const ry = y - rockSize * 0.1;
 
         ctx.beginPath();
-        ctx.ellipse(rx, ry, rockSize * (0.8 + i * 0.3), rockSize * 0.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(rx, ry, rockSize * (0.7 + i * 0.2), rockSize * 0.4, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     } else if (terrain === 'water') {
@@ -717,11 +710,11 @@ export class Renderer {
       ctx.lineWidth = 2;
 
       for (let i = 0; i < 2; i++) {
-        const wy = y + (i - 0.5) * size * 0.25;
+        const wy = y + (i - 0.5) * size * 0.15;
         ctx.beginPath();
-        ctx.moveTo(x - size * 0.3, wy);
-        ctx.quadraticCurveTo(x - size * 0.1, wy - 3, x, wy);
-        ctx.quadraticCurveTo(x + size * 0.1, wy + 3, x + size * 0.3, wy);
+        ctx.moveTo(x - size * 0.2, wy);
+        ctx.quadraticCurveTo(x - size * 0.07, wy - 2, x, wy);
+        ctx.quadraticCurveTo(x + size * 0.07, wy + 2, x + size * 0.2, wy);
         ctx.stroke();
       }
     }
@@ -736,8 +729,8 @@ export class Renderer {
     return `rgb(${r},${g},${b})`;
   }
 
-  getHexAtPixel(px: number, py: number): Hex {
-    return this.pixelToHex(px, py);
+  getCoordAtPixel(px: number, py: number): Coord {
+    return this.pixelToCoord(px, py);
   }
 
   // Check if the last touch was a drag (to prevent click after pan)

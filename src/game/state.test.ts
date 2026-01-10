@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createInitialState, getValidMoves, getValidAttacks, executeAction, updateVisibility, createUnit, getHarvestableTiles } from './state';
-import { hexKey, Hex, Unit, City } from './types';
+import { coordKey, Coord, Unit, City } from './types';
 
 describe('Game State', () => {
   it('creates initial state with player and AI', () => {
@@ -24,8 +24,8 @@ describe('Game State', () => {
     const cities1 = [...state1.cities.values()];
     const cities2 = [...state2.cities.values()];
 
-    expect(cities1[0].hex).toEqual(cities2[0].hex);
-    expect(cities1[1].hex).toEqual(cities2[1].hex);
+    expect(cities1[0].coord).toEqual(cities2[0].coord);
+    expect(cities1[1].coord).toEqual(cities2[1].coord);
   });
 });
 
@@ -40,8 +40,8 @@ describe('Movement Validation', () => {
     const validMoves = getValidMoves(state, playerUnit!);
 
     // Check that no valid moves are on water tiles
-    for (const moveHex of validMoves) {
-      const tile = state.tiles.get(hexKey(moveHex));
+    for (const moveCoord of validMoves) {
+      const tile = state.tiles.get(coordKey(moveCoord));
       expect(tile).toBeDefined();
       expect(tile!.terrain).not.toBe('water');
     }
@@ -61,7 +61,7 @@ describe('Movement Validation', () => {
     expect(validMoves.length).toBe(0);
   });
 
-  it('cannot move to hex occupied by friendly unit', () => {
+  it('cannot move to coord occupied by friendly unit', () => {
     const state = createInitialState('friendly-block-test', 6);
 
     // Get player units and city
@@ -72,7 +72,7 @@ describe('Movement Validation', () => {
       const unit = playerUnits[0];
       const validMoves = getValidMoves(state, unit);
 
-      // None of the valid moves should be on the player city hex
+      // None of the valid moves should be on the player city coord
       // (if there were another unit there, which there isn't in starting state)
       // This test validates the logic exists
       expect(validMoves).toBeDefined();
@@ -92,18 +92,18 @@ describe('Combat', () => {
     expect(aiUnit).toBeDefined();
 
     // Teleport units adjacent for testing
-    const playerHex: Hex = { q: 0, r: 0 };
-    const aiHex: Hex = { q: 1, r: 0 };
+    const playerCoord: Coord = { q: 0, r: 0 };
+    const aiCoord: Coord = { q: 1, r: 0 };
 
-    state.units.set(playerUnit!.id, { ...playerUnit!, hex: playerHex });
-    state.units.set(aiUnit!.id, { ...aiUnit!, hex: aiHex });
+    state.units.set(playerUnit!.id, { ...playerUnit!, coord: playerCoord });
+    state.units.set(aiUnit!.id, { ...aiUnit!, coord: aiCoord });
 
     const initialAiHp = aiUnit!.hp;
 
     const newState = executeAction(state, {
       type: 'attack',
       unitId: playerUnit!.id,
-      targetHex: aiHex
+      targetCoord: aiCoord
     });
 
     const attackedUnit = newState.units.get(aiUnit!.id);
@@ -123,10 +123,10 @@ describe('Combat', () => {
 
     // Place enemy at range 2
     const aiUnit = [...state.units.values()].find(u => u.owner === 1);
-    state.units.set(aiUnit!.id, { ...aiUnit!, hex: { q: 2, r: 0 } }); // Distance 2
+    state.units.set(aiUnit!.id, { ...aiUnit!, coord: { q: 2, r: 0 } }); // Distance 2
 
     const attacks = getValidAttacks(state, peltast);
-    expect(attacks.some(h => h.q === 2 && h.r === 0)).toBe(true);
+    expect(attacks.some(c => c.q === 2 && c.r === 0)).toBe(true);
   });
 
   it('ranged attack does not trigger counterattack', () => {
@@ -139,14 +139,14 @@ describe('Combat', () => {
 
     // Place enemy at range 2
     const aiUnit = [...state.units.values()].find(u => u.owner === 1);
-    state.units.set(aiUnit!.id, { ...aiUnit!, hex: { q: 2, r: 0 } });
+    state.units.set(aiUnit!.id, { ...aiUnit!, coord: { q: 2, r: 0 } });
 
     const initialPeltastHp = peltast.hp;
 
     const newState = executeAction(state, {
       type: 'attack',
       unitId: peltast.id,
-      targetHex: { q: 2, r: 0 }
+      targetCoord: { q: 2, r: 0 }
     });
 
     const updatedPeltast = newState.units.get(peltast.id);
@@ -165,8 +165,8 @@ describe('Tech Effects', () => {
     const aiUnit = [...state.units.values()].find(u => u.owner === 1);
 
     // Place units adjacent
-    state.units.set(playerUnit!.id, { ...playerUnit!, hex: { q: 0, r: 0 } });
-    state.units.set(aiUnit!.id, { ...aiUnit!, hex: { q: 1, r: 0 } });
+    state.units.set(playerUnit!.id, { ...playerUnit!, coord: { q: 0, r: 0 } });
+    state.units.set(aiUnit!.id, { ...aiUnit!, coord: { q: 1, r: 0 } });
 
     // Give player phalanx tech
     state.players[0].techs.push('phalanx');
@@ -174,7 +174,7 @@ describe('Tech Effects', () => {
     const newState = executeAction(state, {
       type: 'attack',
       unitId: playerUnit!.id,
-      targetHex: { q: 1, r: 0 }
+      targetCoord: { q: 1, r: 0 }
     });
 
     const updatedPlayer = newState.units.get(playerUnit!.id);
@@ -211,10 +211,10 @@ describe('Healing', () => {
     expect(playerUnit).toBeDefined();
     expect(playerCity).toBeDefined();
 
-    // Damage the unit and move it to city hex
+    // Damage the unit and move it to city coord
     state.units.set(playerUnit!.id, {
       ...playerUnit!,
-      hex: playerCity!.hex,
+      coord: playerCity!.coord,
       hp: 5 // Damaged
     });
 
@@ -236,7 +236,7 @@ describe('Healing', () => {
     // Unit at 9 HP on city
     state.units.set(playerUnit!.id, {
       ...playerUnit!,
-      hex: playerCity!.hex,
+      coord: playerCity!.coord,
       hp: 9
     });
 
@@ -300,17 +300,17 @@ describe('Village Capture', () => {
     expect(village).toBeDefined();
 
     // Create a player unit adjacent to the village
-    const playerUnit = createUnit('hoplite', 0, { q: village!.hex.q - 1, r: village!.hex.r });
+    const playerUnit = createUnit('hoplite', 0, { q: village!.coord.q - 1, r: village!.coord.r });
     state.units.set(playerUnit.id, playerUnit);
 
     // Ensure the tile exists and is walkable
-    const villageKey = hexKey(village!.hex);
+    const villageKey = coordKey(village!.coord);
     const tile = state.tiles.get(villageKey);
     if (tile && tile.terrain !== 'water') {
       const newState = executeAction(state, {
         type: 'move',
         unitId: playerUnit.id,
-        targetHex: village!.hex
+        targetCoord: village!.coord
       });
 
       // Village should now be owned by player (0)
@@ -328,16 +328,16 @@ describe('Village Capture', () => {
     const village = [...state.cities.values()].find(c => c.owner === null);
     expect(village).toBeDefined();
 
-    const playerUnit = createUnit('hoplite', 0, { q: village!.hex.q - 1, r: village!.hex.r });
+    const playerUnit = createUnit('hoplite', 0, { q: village!.coord.q - 1, r: village!.coord.r });
     state.units.set(playerUnit.id, playerUnit);
 
-    const villageKey = hexKey(village!.hex);
+    const villageKey = coordKey(village!.coord);
     const tile = state.tiles.get(villageKey);
     if (tile && tile.terrain !== 'water') {
       const newState = executeAction(state, {
         type: 'move',
         unitId: playerUnit.id,
-        targetHex: village!.hex
+        targetCoord: village!.coord
       });
 
       const capturedCity = newState.cities.get(village!.id);
@@ -354,16 +354,16 @@ describe('Village Capture', () => {
     const village = [...state.cities.values()].find(c => c.owner === null);
     expect(village).toBeDefined();
 
-    const playerUnit = createUnit('hoplite', 0, { q: village!.hex.q - 1, r: village!.hex.r });
+    const playerUnit = createUnit('hoplite', 0, { q: village!.coord.q - 1, r: village!.coord.r });
     state.units.set(playerUnit.id, playerUnit);
 
-    const villageKey = hexKey(village!.hex);
+    const villageKey = coordKey(village!.coord);
     const tile = state.tiles.get(villageKey);
     if (tile && tile.terrain !== 'water') {
       const newState = executeAction(state, {
         type: 'move',
         unitId: playerUnit.id,
-        targetHex: village!.hex
+        targetCoord: village!.coord
       });
 
       const movedUnit = newState.units.get(playerUnit.id);
@@ -397,11 +397,11 @@ describe('Resource Harvesting', () => {
 
     if (harvestable.length > 0) {
       const initialPop = playerCity!.population;
-      const harvestHex = harvestable[0];
+      const harvestCoord = harvestable[0];
 
       const newState = executeAction(state, {
         type: 'harvest',
-        targetHex: harvestHex
+        targetCoord: harvestCoord
       });
 
       // Find the city that should have gained population
@@ -419,23 +419,23 @@ describe('Resource Harvesting', () => {
     const harvestable = getHarvestableTiles(state, 0);
 
     if (harvestable.length > 0) {
-      const harvestHex = harvestable[0];
+      const harvestCoord = harvestable[0];
 
       // Harvest the tile
       const newState = executeAction(state, {
         type: 'harvest',
-        targetHex: harvestHex
+        targetCoord: harvestCoord
       });
 
       // Check the tile is now marked as harvested
-      const tile = newState.tiles.get(hexKey(harvestHex));
+      const tile = newState.tiles.get(coordKey(harvestCoord));
       expect(tile).toBeDefined();
       expect(tile!.harvested).toBe(true);
 
       // Check it's no longer in harvestable list
       const newHarvestable = getHarvestableTiles(newState, 0);
       const stillHarvestable = newHarvestable.some(
-        h => h.q === harvestHex.q && h.r === harvestHex.r
+        c => c.q === harvestCoord.q && c.r === harvestCoord.r
       );
       expect(stillHarvestable).toBe(false);
     }
@@ -463,7 +463,7 @@ describe('City Level Up', () => {
     if (harvestable.length > 0) {
       const newState = executeAction(state, {
         type: 'harvest',
-        targetHex: harvestable[0]
+        targetCoord: harvestable[0]
       });
 
       // Check if pending level up was triggered
