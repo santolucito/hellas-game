@@ -293,14 +293,14 @@ class Game {
 
     let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
     html += '<h2 style="margin-bottom:20px;color:#c9a227;">Technology</h2>';
-    html += '<p style="margin-bottom:20px;">Your Drachma: ' + player.drachma + '</p>';
+    html += '<p style="margin-bottom:20px;">Your Δρχ: ' + player.drachma + '</p>';
 
     for (const [id, tech] of Object.entries(TECHS)) {
       const owned = player.techs.includes(id as any);
       const canAfford = player.drachma >= tech.cost;
 
       html += `<div style="margin:8px;padding:12px 20px;background:${owned ? '#2ecc71' : canAfford ? 'rgba(201,162,39,0.3)' : 'rgba(128,128,128,0.3)'};border:2px solid ${owned ? '#27ae60' : '#c9a227'};border-radius:8px;cursor:${owned ? 'default' : 'pointer'};" ${owned ? '' : `onclick="window.gameInstance.research('${id}')"`}>`;
-      html += `<strong>${tech.name}</strong> (${tech.cost} Drachma)<br>`;
+      html += `<strong>${tech.name}</strong> (${tech.cost} Δρχ)<br>`;
       html += `<small>${tech.description}</small>`;
       if (owned) html += '<br><small style="color:#fff;">(Researched)</small>';
       html += '</div>';
@@ -349,7 +349,7 @@ class Game {
 
     let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
     html += `<h2 style="margin-bottom:20px;color:#c9a227;">${city.name}</h2>`;
-    html += '<p style="margin-bottom:20px;">Your Drachma: ' + player.drachma + '</p>';
+    html += '<p style="margin-bottom:20px;">Your Δρχ: ' + player.drachma + '</p>';
     html += '<h3 style="margin-bottom:15px;">Train Units</h3>';
 
     const units: Array<{ type: 'hoplite' | 'peltast' | 'trireme'; name: string; icon: string; desc: string }> = [
@@ -367,7 +367,7 @@ class Game {
       const canAfford = player.drachma >= cost;
 
       html += `<div style="margin:8px;padding:12px 20px;background:${canAfford ? 'rgba(201,162,39,0.3)' : 'rgba(128,128,128,0.3)'};border:2px solid #c9a227;border-radius:8px;cursor:${canAfford ? 'pointer' : 'not-allowed'};" ${canAfford ? `onclick="window.gameInstance.trainUnit('${cityId}', '${unit.type}')"` : ''}>`;
-      html += `<span style="font-size:24px;">${unit.icon}</span> <strong>${unit.name}</strong> (${cost} Drachma)<br>`;
+      html += `<span style="font-size:24px;">${unit.icon}</span> <strong>${unit.name}</strong> (${cost} Δρχ)<br>`;
       html += `<small>${unit.desc}</small>`;
       html += '</div>';
     }
@@ -391,14 +391,14 @@ class Game {
   // Show level-up bonus choice modal
   showLevelUpModal(cityId: string, cityName: string, newLevel: number): void {
     const bonusOptions = this.getBonusOptionsForLevel(newLevel);
-    const playerDrachma = this.state.players[0].drachma;
+    const playerΔρχ = this.state.players[0].drachma;
     const upgradeCost = 1;
-    const canAfford = playerDrachma >= upgradeCost;
+    const canAfford = playerΔρχ >= upgradeCost;
 
     let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
     html += `<h2 style="margin-bottom:10px;color:#c9a227;">🎉 ${cityName} Level Up!</h2>`;
     html += `<p style="margin-bottom:10px;color:#9b59b6;">Now Level ${newLevel}</p>`;
-    html += `<p style="margin-bottom:20px;color:${canAfford ? '#c9a227' : '#f25c54'};">Upgrade Cost: ${upgradeCost} Drachma (You have: ${playerDrachma})</p>`;
+    html += `<p style="margin-bottom:20px;color:${canAfford ? '#c9a227' : '#f25c54'};">Upgrade Cost: ${upgradeCost} Δρχ (You have: ${playerΔρχ})</p>`;
     html += '<h3 style="margin-bottom:15px;">Choose a bonus:</h3>';
 
     for (const option of bonusOptions) {
@@ -414,7 +414,7 @@ class Game {
     }
 
     if (!canAfford) {
-      html += '<p style="margin-top:20px;color:#f25c54;">Not enough Drachma!</p>';
+      html += '<p style="margin-top:20px;color:#f25c54;">Not enough Δρχ!</p>';
       html += '<button style="margin-top:10px;padding:10px 20px;background:rgba(201,162,39,0.3);border:2px solid #c9a227;color:#f0e6d2;border-radius:8px;cursor:pointer;" onclick="document.querySelector(\'[style*=\\\'z-index:200\\\']\')?.remove()">Close</button>';
     }
 
@@ -427,12 +427,12 @@ class Game {
     switch (level) {
       case 2:
         return [
-          { id: 'workshop', name: 'Agora', icon: '🏪', desc: '+1 Drachma per turn' },
+          { id: 'workshop', name: 'Agora', icon: '🏪', desc: '+1 Δρχ per turn' },
           { id: 'explorer', name: 'Scout', icon: '🔭', desc: 'Reveal nearby fog' }
         ];
       case 3:
         return [
-          { id: 'stars', name: 'Treasury', icon: '💰', desc: '+5 Drachma instantly' },
+          { id: 'stars', name: 'Treasury', icon: '💰', desc: '+5 Δρχ instantly' },
           { id: 'walls', name: 'Walls', icon: '🏰', desc: 'City defense bonus' }
         ];
       case 4:
@@ -455,7 +455,7 @@ class Game {
     // Show confirmation popup
     let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
     html += '<h2 style="margin-bottom:20px;color:#c9a227;">Confirm Upgrade</h2>';
-    html += `<p style="margin-bottom:20px;">Build <strong>${bonusName}</strong> for <strong>1 Drachma</strong>?</p>`;
+    html += `<p style="margin-bottom:20px;">Build <strong>${bonusName}</strong> for <strong>1 Δρχ</strong>?</p>`;
     html += '<div style="display:flex;gap:15px;">';
     html += `<button style="padding:12px 30px;background:rgba(126,200,80,0.3);border:2px solid #7ec850;color:#f0e6d2;border-radius:8px;cursor:pointer;font-size:16px;" onclick="window.gameInstance.chooseLevelUpBonus('${cityId}', '${bonusId}')">Confirm</button>`;
     html += '<button style="padding:12px 30px;background:rgba(242,92,84,0.3);border:2px solid #f25c54;color:#f0e6d2;border-radius:8px;cursor:pointer;font-size:16px;" onclick="document.querySelector(\'[style*=\\\'z-index:200\\\']\')?.remove()">Cancel</button>';
@@ -560,6 +560,17 @@ class Game {
     document.getElementById('drachma')!.textContent = player.drachma.toString();
     document.getElementById('turn-num')!.textContent = this.state.turn.toString();
 
+    // Calculate income per turn
+    let income = 0;
+    for (const city of this.state.cities.values()) {
+      if (city.owner !== 0) continue;
+      income += city.level;
+      if (city.isCapital) income += 1;
+      if (city.bonuses.includes('workshop')) income += 1;
+      if (player.techs.includes('philosophy')) income += 1;
+    }
+    document.getElementById('income')!.textContent = `(+${income})`;
+
     // Unit count
     const playerUnits = [...this.state.units.values()].filter(u => u.owner === 0);
     document.getElementById('unit-count')!.textContent = playerUnits.length.toString();
@@ -648,7 +659,7 @@ class Game {
 
       const statsHtml = `
         <div><strong>Turns:</strong> ${this.state.turn}</div>
-        <div><strong>Final Drachma:</strong> ${player.drachma}</div>
+        <div><strong>Final Δρχ:</strong> ${player.drachma}</div>
         <div><strong>Units Remaining:</strong> ${playerUnits.length}</div>
         <div><strong>Cities Controlled:</strong> ${playerCities.length}</div>
         <div><strong>Techs Researched:</strong> ${player.techs.length}</div>

@@ -50,8 +50,8 @@ function createVillage(coord: Coord): City {
 }
 
 const GREEK_CITY_NAMES = [
-  'Athens', 'Sparta', 'Thebes', 'Corinth', 'Argos',
-  'Delphi', 'Olympia', 'Mycenae', 'Rhodes', 'Syracuse'
+  'Ἀθῆναι', 'Σπάρτη', 'Θῆβαι', 'Κόρινθος', 'Ἄργος',
+  'Δελφοί', 'Ὀλυμπία', 'Μυκῆναι', 'Ῥόδος', 'Συράκουσαι'
 ];
 
 export function createInitialState(seed: string, mapRadius: number = 6): GameState {
@@ -695,7 +695,7 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 export const TECHS: Record<TechId, { name: string; cost: number; description: string }> = {
   phalanx: { name: 'Phalanx', cost: 10, description: '+1 Defense for Hoplites' },
   seafaring: { name: 'Seafaring', cost: 10, description: 'Unlock Triremes' },
-  philosophy: { name: 'Philosophy', cost: 10, description: '+1 Drachma per city' }
+  philosophy: { name: 'Philosophy', cost: 10, description: '+1 Δρχ per city' }
 };
 
 export const UNIT_COSTS: Record<Unit['type'], number> = {
