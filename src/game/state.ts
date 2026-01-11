@@ -329,13 +329,10 @@ export function executeAction(state: GameState, action: GameAction): GameState {
         if (unit) {
           const validMoves = getValidMoves(state, unit);
           if (validMoves.some(c => coordEquals(c, action.targetCoord!))) {
-            const targetTile = state.tiles.get(coordKey(action.targetCoord));
-            const cost = targetTile ? getTerrainCost(targetTile.terrain) : 1;
-
             const updatedUnit: Unit = {
               ...unit,
               coord: action.targetCoord,
-              movesLeft: Math.max(0, unit.movesLeft - cost)
+              movesLeft: 0  // Moving consumes all movement for the turn
             };
             newState.units.set(unit.id, updatedUnit);
 
