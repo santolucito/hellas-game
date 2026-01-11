@@ -1,5 +1,5 @@
 import { SeededRNG } from './rng';
-import { Coord, Tile, Terrain, coordKey, coordDistance, neighbors } from './types';
+import { Coord, Tile, Terrain, coordKey, coordDistance, coordEquals, neighbors } from './types';
 
 export interface MapGenResult {
   tiles: Map<string, Tile>;
@@ -124,6 +124,67 @@ export function generateMap(seed: string, radius: number): MapGenResult {
       }
     }
     // If exactly 1 water neighbor, it's already perfect - do nothing
+  }
+
+  // Ensure water connectivity between player and AI starting positions
+  // Find water tiles adjacent to each start
+  const playerWater = neighbors(playerStart)
+    .map(n => tiles.get(coordKey(n)))
+    .find(t => t && t.terrain === 'water');
+  const aiWater = neighbors(aiStart)
+    .map(n => tiles.get(coordKey(n)))
+    .find(t => t && t.terrain === 'water');
+
+  if (playerWater && aiWater) {
+    // Check if there's a water path between them using BFS
+    const visited = new Set<string>();
+    const queue: Coord[] = [playerWater.coord];
+    visited.add(coordKey(playerWater.coord));
+    let connected = false;
+
+    while (queue.length > 0 && !connected) {
+      const current = queue.shift()!;
+
+      if (coordKey(current) === coordKey(aiWater.coord)) {
+        connected = true;
+        break;
+      }
+
+      for (const neighbor of neighbors(current)) {
+        const key = coordKey(neighbor);
+        if (visited.has(key)) continue;
+
+        const tile = tiles.get(key);
+        if (tile && tile.terrain === 'water') {
+          visited.add(key);
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    // If not connected, carve a water channel between them
+    if (!connected) {
+      // Simple approach: create water tiles along a path from playerWater to aiWater
+      let current = { ...playerWater.coord };
+      const target = aiWater.coord;
+
+      while (current.q !== target.q || current.r !== target.r) {
+        // Move toward target
+        if (current.q < target.q) current.q++;
+        else if (current.q > target.q) current.q--;
+
+        if (current.r < target.r) current.r++;
+        else if (current.r > target.r) current.r--;
+
+        const tile = tiles.get(coordKey(current));
+        if (tile && tile.terrain !== 'water') {
+          // Don't overwrite starting positions
+          if (!coordEquals(current, playerStart) && !coordEquals(current, aiStart)) {
+            tile.terrain = 'water';
+          }
+        }
+      }
+    }
   }
 
   // Generate neutral villages (4-6 depending on map size)
