@@ -1,6 +1,6 @@
 import { GameState, coordEquals, coordKey } from './game/types';
 import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, getValidEmbarkTargets, getValidDisembarkTargets, TECHS, UNIT_COSTS, CITY_NAME_INFO, UNIT_NAME_INFO } from './game/state';
-import { Renderer } from './ui/renderer';
+import { ThreeRenderer as Renderer } from './ui/three/ThreeRenderer';
 import { runAI } from './ai/opponent';
 
 // Get seed from URL or generate random
