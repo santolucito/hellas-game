@@ -89,7 +89,7 @@ class Game {
   private handleTap(x: number, y: number): void {
     if (this.state.phase !== 'player_turn') return;
 
-    const coord = this.renderer.getCoordAtPixel(x, y);
+    const coord = this.renderer.getCoordAtPixel(x, y, this.state.tiles);
 
     // Check if tapping on own unit
     const tappedUnit = [...this.state.units.values()].find(
@@ -204,7 +204,7 @@ class Game {
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const coord = this.renderer.getCoordAtPixel(x, y);
+    const coord = this.renderer.getCoordAtPixel(x, y, this.state.tiles);
     const key = coordKey(coord);
 
     const tile = this.state.tiles.get(key);

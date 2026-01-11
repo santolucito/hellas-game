@@ -1013,8 +1013,52 @@ export class Renderer {
     return `rgb(${r},${g},${b})`;
   }
 
-  getCoordAtPixel(px: number, py: number): Coord {
-    return this.pixelToCoord(px, py);
+  getCoordAtPixel(px: number, py: number, tiles?: Map<string, { coord: Coord; terrain: string }>): Coord {
+    const rawCoord = this.pixelToCoord(px, py);
+
+    if (!tiles) return rawCoord;
+
+    // Check tiles that might visually contain this click (accounting for elevation)
+    // We need to check the raw coord and tiles "behind" it (lower q+r) that have elevation
+    const candidates: { coord: Coord; elevation: number; terrain: string }[] = [];
+
+    // Check a range of nearby tiles
+    for (let dq = -2; dq <= 1; dq++) {
+      for (let dr = -2; dr <= 1; dr++) {
+        const checkCoord = { q: rawCoord.q + dq, r: rawCoord.r + dr };
+        const key = `${checkCoord.q},${checkCoord.r}`;
+        const tile = tiles.get(key);
+        if (tile) {
+          candidates.push({
+            coord: checkCoord,
+            elevation: this.getTerrainElevation(tile.terrain),
+            terrain: tile.terrain
+          });
+        }
+      }
+    }
+
+    // Sort by render order (front to back): higher q+r is in front
+    candidates.sort((a, b) => (b.coord.q + b.coord.r) - (a.coord.q + a.coord.r));
+
+    // Check each tile to see if click is inside its visual diamond
+    const w = (TILE_WIDTH / 2) * this.scale;
+    const h = (TILE_HEIGHT_HALF / 2) * this.scale;
+
+    for (const candidate of candidates) {
+      const { x, y } = this.coordToPixel(candidate.coord);
+      const topY = y - candidate.elevation * this.scale;
+
+      // Check if point is inside diamond: |dx|/w + |dy|/h <= 1
+      const dx = Math.abs(px - x);
+      const dy = Math.abs(py - topY);
+
+      if (dx / w + dy / h <= 1) {
+        return candidate.coord;
+      }
+    }
+
+    return rawCoord;
   }
 
   // Check if the last touch was a drag (to prevent click after pan)
