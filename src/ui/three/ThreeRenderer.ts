@@ -159,8 +159,9 @@ export class ThreeRenderer {
       if (this.isPanning) {
         const dx = e.clientX - this.lastPanX;
         const dy = e.clientY - this.lastPanY;
-        this.offsetX -= dx * 0.02 / this.zoom;
-        this.offsetZ -= dy * 0.02 / this.zoom;
+        const { worldX, worldZ } = this.screenToWorldDrag(dx, dy);
+        this.offsetX -= worldX * 0.02 / this.zoom;
+        this.offsetZ -= worldZ * 0.02 / this.zoom;
         this.lastPanX = e.clientX;
         this.lastPanY = e.clientY;
         this.updateCamera();
@@ -209,8 +210,9 @@ export class ThreeRenderer {
         }
 
         if (this.isTouchPanning) {
-          this.offsetX -= dx * 0.02 / this.zoom;
-          this.offsetZ -= dy * 0.02 / this.zoom;
+          const { worldX, worldZ } = this.screenToWorldDrag(dx, dy);
+          this.offsetX -= worldX * 0.02 / this.zoom;
+          this.offsetZ -= worldZ * 0.02 / this.zoom;
           this.updateCamera();
           e.preventDefault();
         }
@@ -221,8 +223,11 @@ export class ThreeRenderer {
         // Pan with two fingers
         const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        this.offsetX -= (midX - this.lastPanX) * 0.02 / this.zoom;
-        this.offsetZ -= (midY - this.lastPanY) * 0.02 / this.zoom;
+        const dx = midX - this.lastPanX;
+        const dy = midY - this.lastPanY;
+        const { worldX, worldZ } = this.screenToWorldDrag(dx, dy);
+        this.offsetX -= worldX * 0.02 / this.zoom;
+        this.offsetZ -= worldZ * 0.02 / this.zoom;
         this.lastPanX = midX;
         this.lastPanY = midY;
 
@@ -252,6 +257,18 @@ export class ThreeRenderer {
     const dx = touches[0].clientX - touches[1].clientX;
     const dy = touches[0].clientY - touches[1].clientY;
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Convert screen-space drag to world-space for isometric 45-degree view
+  private screenToWorldDrag(dx: number, dy: number): { worldX: number; worldZ: number } {
+    // Rotate by -45 degrees to match isometric camera angle
+    const angle = -Math.PI / 4;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return {
+      worldX: dx * cos - dy * sin,
+      worldZ: dx * sin + dy * cos
+    };
   }
 
   private updateCamera(): void {
