@@ -50,7 +50,7 @@ export interface Village {
   // Villages are essentially cities with owner: null
 }
 
-export type TechId = 'phalanx' | 'seafaring' | 'philosophy';
+export type TechId = 'phalanx' | 'philosophy';
 
 export interface Tech {
   id: TechId;

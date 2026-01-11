@@ -417,12 +417,8 @@ class Game {
     const units: Array<{ type: 'hoplite' | 'peltast' | 'trireme'; icon: string; desc: string }> = [
       { type: 'hoplite', icon: '⚔', desc: 'HP 5, ATK 3, DEF 2, MOV 2' },
       { type: 'peltast', icon: '🏹', desc: 'HP 4, ATK 2, DEF 1, MOV 3' },
+      { type: 'trireme', icon: '⛵', desc: 'HP 6, ATK 4, DEF 2, MOV 4 (water)' },
     ];
-
-    // Add Trireme if player has Seafaring tech
-    if (player.techs.includes('seafaring')) {
-      units.push({ type: 'trireme', icon: '⛵', desc: 'HP 6, ATK 4, DEF 2, MOV 4 (water only)' });
-    }
 
     for (const unit of units) {
       const cost = UNIT_COSTS[unit.type];

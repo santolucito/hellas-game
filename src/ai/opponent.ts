@@ -24,10 +24,7 @@ export function runAI(state: GameState): GameAction[] {
   const needsNavy = playerCities.length > 0 && !aiHasTrireme;
 
   // AI researches techs if it has enough drachma and doesn't have all techs
-  // Prioritize seafaring if we need naval access
-  const techPriority: TechId[] = needsNavy
-    ? ['seafaring', 'phalanx', 'philosophy']
-    : ['phalanx', 'philosophy', 'seafaring'];
+  const techPriority: TechId[] = ['phalanx', 'philosophy'];
   for (const techId of techPriority) {
     if (!aiPlayer.techs.includes(techId) && aiPlayer.drachma >= TECHS[techId].cost) {
       actions.push({ type: 'research', techId });
@@ -36,8 +33,6 @@ export function runAI(state: GameState): GameAction[] {
   }
 
   // AI trains units if it has enough drachma
-  const hasSeafaring = aiPlayer.techs.includes('seafaring');
-
   for (const city of aiCities) {
     const adjacentCoords = neighbors(city.coord);
 
@@ -47,8 +42,8 @@ export function runAI(state: GameState): GameAction[] {
       return tile && tile.terrain === 'water';
     });
 
-    // Build trireme if we have seafaring, city is coastal, and we need navy
-    if (hasSeafaring && hasWater && needsNavy && aiPlayer.drachma >= UNIT_COSTS.trireme) {
+    // Build trireme if city is coastal and we need navy
+    if (hasWater && needsNavy && aiPlayer.drachma >= UNIT_COSTS.trireme) {
       const waterSpawn = adjacentCoords.find(c => {
         const tile = state.tiles.get(coordKey(c));
         if (!tile || tile.terrain !== 'water') return false;

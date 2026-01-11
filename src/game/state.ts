@@ -838,7 +838,6 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
 export const TECHS: Record<TechId, { name: string; cost: number; description: string }> = {
   phalanx: { name: 'Phalanx', cost: 10, description: '+1 Defense for Hoplites' },
-  seafaring: { name: 'Seafaring', cost: 5, description: 'Unlock Triremes' },
   philosophy: { name: 'Philosophy', cost: 10, description: '+1 Δρχ per city' }
 };
 
