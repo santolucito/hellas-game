@@ -112,13 +112,17 @@ export function coordDistance(a: Coord, b: Coord): number {
   return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r));
 }
 
-// Get all 4 cardinal neighbors (N, E, S, W) - Polytopia style
+// Get all 8 neighbors (including diagonals)
 export function neighbors(coord: Coord): Coord[] {
   const directions = [
-    { q: 0, r: -1 },  // North
-    { q: 1, r: 0 },   // East
-    { q: 0, r: 1 },   // South
-    { q: -1, r: 0 }   // West
+    { q: 0, r: -1 },   // North
+    { q: 1, r: -1 },   // Northeast
+    { q: 1, r: 0 },    // East
+    { q: 1, r: 1 },    // Southeast
+    { q: 0, r: 1 },    // South
+    { q: -1, r: 1 },   // Southwest
+    { q: -1, r: 0 },   // West
+    { q: -1, r: -1 }   // Northwest
   ];
   return directions.map(d => ({ q: coord.q + d.q, r: coord.r + d.r }));
 }

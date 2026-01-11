@@ -210,8 +210,8 @@ export function updateVisibility(state: GameState, playerId: PlayerId): void {
 export function getTerrainCost(terrain: Tile['terrain']): number {
   switch (terrain) {
     case 'plains': return 1;
-    case 'forest': return 2;
-    case 'hills': return 2;
+    case 'forest': return 1;
+    case 'hills': return 1;
     case 'water': return Infinity; // Impassable for land units
   }
 }
