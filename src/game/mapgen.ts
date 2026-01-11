@@ -100,14 +100,30 @@ export function generateMap(seed: string, radius: number): MapGenResult {
   tiles.get(coordKey(playerStart))!.terrain = 'plains';
   tiles.get(coordKey(aiStart))!.terrain = 'plains';
 
-  // Also clear immediate neighbors to plains for easier early game
+  // Ensure starting positions have coastal access for triremes
+  // Keep or create one water tile adjacent, convert others to plains
   for (const start of [playerStart, aiStart]) {
-    for (const neighbor of neighbors(start)) {
-      const tile = tiles.get(coordKey(neighbor));
-      if (tile && tile.terrain === 'water') {
-        tile.terrain = 'plains';
+    const adjacentTiles = neighbors(start)
+      .map(n => tiles.get(coordKey(n)))
+      .filter((t): t is Tile => t !== undefined);
+
+    const waterNeighbors = adjacentTiles.filter(t => t.terrain === 'water');
+    const landNeighbors = adjacentTiles.filter(t => t.terrain !== 'water');
+
+    if (waterNeighbors.length === 0) {
+      // No water adjacent - convert one land tile to water for coastal access
+      if (landNeighbors.length > 0) {
+        const toWater = rng.pick(landNeighbors);
+        toWater.terrain = 'water';
+      }
+    } else if (waterNeighbors.length > 1) {
+      // Multiple water tiles - keep one, convert rest to plains for workable land
+      // Keep the first one, convert the rest
+      for (let i = 1; i < waterNeighbors.length; i++) {
+        waterNeighbors[i].terrain = 'plains';
       }
     }
+    // If exactly 1 water neighbor, it's already perfect - do nothing
   }
 
   // Generate neutral villages (4-6 depending on map size)
