@@ -1,5 +1,5 @@
 import { GameState, coordEquals, coordKey } from './game/types';
-import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, TECHS, UNIT_COSTS, CITY_NAME_INFO } from './game/state';
+import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, TECHS, UNIT_COSTS, CITY_NAME_INFO, UNIT_NAME_INFO } from './game/state';
 import { Renderer } from './ui/renderer';
 import { runAI } from './ai/opponent';
 
@@ -243,7 +243,9 @@ class Game {
     // Check for unit (only if visible)
     const unit = [...this.state.units.values()].find(u => coordEquals(u.coord, coord));
     if (unit && (unit.owner === 0 || this.state.visible.has(key))) {
-      content += `<br><br><strong>${unit.type.charAt(0).toUpperCase() + unit.type.slice(1)}</strong>`;
+      const unitInfo = UNIT_NAME_INFO[unit.type];
+      content += `<br><br><strong>${unitInfo.greek}</strong>`;
+      content += `<br><small style="color:#a0a0a0;">${unitInfo.roman} — ${unitInfo.english}</small>`;
       content += `<br>HP: ${unit.hp}/${unit.maxHp}`;
       content += `<br>Moves: ${unit.movesLeft}/${unit.movement}`;
       content += `<br>Owner: ${unit.owner === 0 ? 'You' : 'Enemy'}`;
@@ -360,22 +362,24 @@ class Game {
     html += '<p style="margin-bottom:20px;">Your Δρχ: ' + player.drachma + '</p>';
     html += '<h3 style="margin-bottom:15px;">Train Units</h3>';
 
-    const units: Array<{ type: 'hoplite' | 'peltast' | 'trireme'; name: string; icon: string; desc: string }> = [
-      { type: 'hoplite', name: 'Hoplite', icon: '⚔', desc: 'HP 10, ATK 3, DEF 2, MOV 2' },
-      { type: 'peltast', name: 'Peltast', icon: '🏹', desc: 'HP 8, ATK 2, DEF 1, MOV 3' },
+    const units: Array<{ type: 'hoplite' | 'peltast' | 'trireme'; icon: string; desc: string }> = [
+      { type: 'hoplite', icon: '⚔', desc: 'HP 5, ATK 3, DEF 2, MOV 2' },
+      { type: 'peltast', icon: '🏹', desc: 'HP 4, ATK 2, DEF 1, MOV 3' },
     ];
 
     // Add Trireme if player has Seafaring tech
     if (player.techs.includes('seafaring')) {
-      units.push({ type: 'trireme', name: 'Trireme', icon: '⛵', desc: 'HP 12, ATK 4, DEF 2, MOV 4 (water only)' });
+      units.push({ type: 'trireme', icon: '⛵', desc: 'HP 6, ATK 4, DEF 2, MOV 4 (water only)' });
     }
 
     for (const unit of units) {
       const cost = UNIT_COSTS[unit.type];
       const canAfford = player.drachma >= cost;
+      const unitInfo = UNIT_NAME_INFO[unit.type];
 
       html += `<div style="margin:8px;padding:12px 20px;background:${canAfford ? 'rgba(201,162,39,0.3)' : 'rgba(128,128,128,0.3)'};border:2px solid #c9a227;border-radius:8px;cursor:${canAfford ? 'pointer' : 'not-allowed'};" ${canAfford ? `onclick="window.gameInstance.trainUnit('${cityId}', '${unit.type}')"` : ''}>`;
-      html += `<span style="font-size:24px;">${unit.icon}</span> <strong>${unit.name}</strong> (${cost} Δρχ)<br>`;
+      html += `<span style="font-size:24px;">${unit.icon}</span> <strong>${unitInfo.greek}</strong> (${cost} Δρχ)<br>`;
+      html += `<small style="color:#a0a0a0;">${unitInfo.roman} — ${unitInfo.english}</small><br>`;
       html += `<small>${unit.desc}</small>`;
       html += '</div>';
     }
@@ -604,16 +608,18 @@ class Game {
 
     panel.classList.add('visible');
 
-    // Unit type icons and names
-    const unitInfo: Record<string, { icon: string; name: string }> = {
-      hoplite: { icon: '🛡️', name: 'Hoplite' },
-      peltast: { icon: '🏹', name: 'Peltast' },
-      trireme: { icon: '⛵', name: 'Trireme' }
+    // Unit type icons
+    const unitIcons: Record<string, string> = {
+      hoplite: '🛡️',
+      peltast: '🏹',
+      trireme: '⛵'
     };
 
-    const info = unitInfo[selectedUnit.type] || { icon: '⚔', name: selectedUnit.type };
-    document.getElementById('unit-icon')!.textContent = info.icon;
-    document.getElementById('unit-name')!.textContent = info.name;
+    const icon = unitIcons[selectedUnit.type] || '⚔';
+    const nameInfo = UNIT_NAME_INFO[selectedUnit.type];
+    document.getElementById('unit-icon')!.textContent = icon;
+    document.getElementById('unit-name')!.textContent = nameInfo.greek;
+    document.getElementById('unit-name-sub')!.textContent = `${nameInfo.roman} — ${nameInfo.english}`;
 
     // Stats
     document.getElementById('unit-hp')!.textContent = `${selectedUnit.hp}/${selectedUnit.maxHp}`;

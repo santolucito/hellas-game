@@ -68,6 +68,13 @@ export const CITY_NAME_INFO: Record<string, { roman: string; english: string }> 
   'Συράκουσαι': { roman: 'Syrakousai', english: 'Syracuse' }
 };
 
+// Mapping of unit types to Greek names with romanization and English
+export const UNIT_NAME_INFO: Record<string, { greek: string; roman: string; english: string }> = {
+  'hoplite': { greek: 'Ὁπλίτης', roman: 'Hoplitēs', english: 'Hoplite' },
+  'peltast': { greek: 'Πελταστής', roman: 'Peltastēs', english: 'Peltast' },
+  'trireme': { greek: 'Τριήρης', roman: 'Triērēs', english: 'Trireme' }
+};
+
 export function createInitialState(seed: string, mapRadius: number = 6): GameState {
   unitIdCounter = 0;
   cityIdCounter = 0;
