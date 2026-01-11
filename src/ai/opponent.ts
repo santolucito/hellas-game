@@ -1,5 +1,5 @@
 import { GameState, GameAction, Coord, coordEquals, coordDistance, neighbors, coordKey, TechId } from '../game/types';
-import { getValidMoves, getValidAttacks, UNIT_COSTS, TECHS, getHarvestableTiles } from '../game/state';
+import { getValidMoves, getValidAttacks, UNIT_COSTS, TECHS, getHarvestableTiles, getValidEmbarkTargets, getValidDisembarkTargets } from '../game/state';
 
 export function runAI(state: GameState): GameAction[] {
   const actions: GameAction[] = [];
@@ -18,8 +18,16 @@ export function runAI(state: GameState): GameAction[] {
     }
   }
 
+  // Check if AI needs naval capability (player is across water)
+  const playerCities = [...state.cities.values()].filter(c => c.owner === 0);
+  const aiHasTrireme = [...state.units.values()].some(u => u.owner === 1 && u.type === 'trireme');
+  const needsNavy = playerCities.length > 0 && !aiHasTrireme;
+
   // AI researches techs if it has enough drachma and doesn't have all techs
-  const techPriority: TechId[] = ['phalanx', 'philosophy', 'seafaring'];
+  // Prioritize seafaring if we need naval access
+  const techPriority: TechId[] = needsNavy
+    ? ['seafaring', 'phalanx', 'philosophy']
+    : ['phalanx', 'philosophy', 'seafaring'];
   for (const techId of techPriority) {
     if (!aiPlayer.techs.includes(techId) && aiPlayer.drachma >= TECHS[techId].cost) {
       actions.push({ type: 'research', techId });
@@ -28,13 +36,37 @@ export function runAI(state: GameState): GameAction[] {
   }
 
   // AI trains units if it has enough drachma
+  const hasSeafaring = aiPlayer.techs.includes('seafaring');
+
   for (const city of aiCities) {
-    // Decide unit type: 70% hoplite, 30% peltast
+    const adjacentCoords = neighbors(city.coord);
+
+    // Check if city is coastal (has adjacent water)
+    const hasWater = adjacentCoords.some(c => {
+      const tile = state.tiles.get(coordKey(c));
+      return tile && tile.terrain === 'water';
+    });
+
+    // Build trireme if we have seafaring, city is coastal, and we need navy
+    if (hasSeafaring && hasWater && needsNavy && aiPlayer.drachma >= UNIT_COSTS.trireme) {
+      const waterSpawn = adjacentCoords.find(c => {
+        const tile = state.tiles.get(coordKey(c));
+        if (!tile || tile.terrain !== 'water') return false;
+        const occupied = [...state.units.values()].some(u => coordEquals(u.coord, c));
+        return !occupied;
+      });
+
+      if (waterSpawn) {
+        actions.push({ type: 'train', cityId: city.id, unitType: 'trireme' });
+        break;
+      }
+    }
+
+    // Otherwise build land units: 70% hoplite, 30% peltast
     const unitType: 'hoplite' | 'peltast' = Math.random() < 0.7 ? 'hoplite' : 'peltast';
     const cost = UNIT_COSTS[unitType];
 
     if (aiPlayer.drachma >= cost) {
-      const adjacentCoords = neighbors(city.coord);
       const spawnCoord = adjacentCoords.find(c => {
         const tile = state.tiles.get(coordKey(c));
         if (!tile || tile.terrain === 'water') return false;
@@ -85,47 +117,131 @@ export function runAI(state: GameState): GameAction[] {
       }
     }
 
+    // TRIREME LOGIC: If trireme has passengers and is adjacent to enemy land, disembark
+    if (unit.type === 'trireme' && unit.passengerIds && unit.passengerIds.length > 0) {
+      const disembarkTargets = getValidDisembarkTargets(state, unit);
+      if (disembarkTargets.length > 0) {
+        // Prefer disembarking near player cities or units
+        let bestDisembark: Coord | null = null;
+        let bestScore = -Infinity;
+
+        for (const target of disembarkTargets) {
+          let score = 0;
+          // Check proximity to player cities
+          for (const city of playerCities) {
+            const dist = coordDistance(target, city.coord);
+            if (dist <= 2) score += 10 - dist; // Closer to city = higher score
+          }
+          // Check proximity to player units
+          for (const playerUnit of state.units.values()) {
+            if (playerUnit.owner === 0) {
+              const dist = coordDistance(target, playerUnit.coord);
+              if (dist <= 2) score += 5 - dist;
+            }
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestDisembark = target;
+          }
+        }
+
+        // Disembark if we're near something worth attacking, or just disembark anywhere
+        if (bestDisembark || disembarkTargets.length > 0) {
+          actions.push({
+            type: 'disembark',
+            unitId: unit.id,
+            targetCoord: bestDisembark || disembarkTargets[0]
+          });
+          continue;
+        }
+      }
+    }
+
+    // LAND UNIT EMBARK LOGIC: If land unit can embark on a trireme, do so
+    if (unit.type !== 'trireme' && unit.movesLeft > 0) {
+      const embarkTargets = getValidEmbarkTargets(state, unit);
+      if (embarkTargets.length > 0) {
+        // Find the trireme at this location
+        const triremeCoord = embarkTargets[0];
+        const trireme = [...state.units.values()].find(
+          u => u.type === 'trireme' && u.owner === 1 && coordEquals(u.coord, triremeCoord)
+        );
+        if (trireme) {
+          actions.push({
+            type: 'embark',
+            unitId: unit.id,
+            triremeId: trireme.id
+          });
+          continue;
+        }
+      }
+    }
+
     // If can't attack, try to move toward nearest enemy
     const validMoves = getValidMoves(state, unit);
     if (validMoves.length === 0) continue;
 
-    // Find nearest target: neutral villages (high priority), player units, or player cities
+    // Find nearest target
     let nearestTarget: Coord | null = null;
     let nearestDist = Infinity;
     let targetPriority = 0; // Higher = more important
 
-    // Priority 3: Neutral villages (capture them!)
-    for (const village of neutralVillages) {
-      const dist = coordDistance(unit.coord, village.coord);
-      if (dist < nearestDist || targetPriority < 3) {
-        if (targetPriority < 3 || dist < nearestDist) {
-          nearestDist = dist;
-          nearestTarget = village.coord;
-          targetPriority = 3;
-        }
-      }
-    }
-
-    // Priority 2: Player cities (only if no villages nearby)
-    for (const city of state.cities.values()) {
-      if (city.owner === 0) {
+    // TRIREME WITH PASSENGERS: Focus entirely on reaching player territory
+    if (unit.type === 'trireme' && unit.passengerIds && unit.passengerIds.length > 0) {
+      // Move toward nearest player city
+      for (const city of playerCities) {
         const dist = coordDistance(unit.coord, city.coord);
-        if (targetPriority < 2 || (targetPriority === 2 && dist < nearestDist)) {
+        if (dist < nearestDist) {
           nearestDist = dist;
           nearestTarget = city.coord;
-          targetPriority = 2;
         }
       }
-    }
-
-    // Priority 1: Player units
-    for (const playerUnit of state.units.values()) {
-      if (playerUnit.owner === 0) {
-        const dist = coordDistance(unit.coord, playerUnit.coord);
-        if (targetPriority < 1 || (targetPriority === 1 && dist < nearestDist)) {
+    } else if (unit.type === 'trireme') {
+      // Empty trireme: move toward AI land units that might want to embark
+      const aiLandUnits = aiUnits.filter(u => u.type !== 'trireme');
+      for (const landUnit of aiLandUnits) {
+        const dist = coordDistance(unit.coord, landUnit.coord);
+        if (dist < nearestDist) {
           nearestDist = dist;
-          nearestTarget = playerUnit.coord;
-          targetPriority = 1;
+          nearestTarget = landUnit.coord;
+        }
+      }
+    } else {
+      // Land units: normal targeting priorities
+
+      // Priority 3: Neutral villages (capture them!)
+      for (const village of neutralVillages) {
+        const dist = coordDistance(unit.coord, village.coord);
+        if (dist < nearestDist || targetPriority < 3) {
+          if (targetPriority < 3 || dist < nearestDist) {
+            nearestDist = dist;
+            nearestTarget = village.coord;
+            targetPriority = 3;
+          }
+        }
+      }
+
+      // Priority 2: Player cities (only if no villages nearby)
+      for (const city of state.cities.values()) {
+        if (city.owner === 0) {
+          const dist = coordDistance(unit.coord, city.coord);
+          if (targetPriority < 2 || (targetPriority === 2 && dist < nearestDist)) {
+            nearestDist = dist;
+            nearestTarget = city.coord;
+            targetPriority = 2;
+          }
+        }
+      }
+
+      // Priority 1: Player units
+      for (const playerUnit of state.units.values()) {
+        if (playerUnit.owner === 0) {
+          const dist = coordDistance(unit.coord, playerUnit.coord);
+          if (targetPriority < 1 || (targetPriority === 1 && dist < nearestDist)) {
+            nearestDist = dist;
+            nearestTarget = playerUnit.coord;
+            targetPriority = 1;
+          }
         }
       }
     }
