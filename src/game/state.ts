@@ -54,6 +54,20 @@ const GREEK_CITY_NAMES = [
   'Δελφοί', 'Ὀλυμπία', 'Μυκῆναι', 'Ῥόδος', 'Συράκουσαι'
 ];
 
+// Mapping of Greek city names to romanization and English
+export const CITY_NAME_INFO: Record<string, { roman: string; english: string }> = {
+  'Ἀθῆναι': { roman: 'Athēnai', english: 'Athens' },
+  'Σπάρτη': { roman: 'Spartē', english: 'Sparta' },
+  'Θῆβαι': { roman: 'Thēbai', english: 'Thebes' },
+  'Κόρινθος': { roman: 'Korinthos', english: 'Corinth' },
+  'Ἄργος': { roman: 'Argos', english: 'Argos' },
+  'Δελφοί': { roman: 'Delphoi', english: 'Delphi' },
+  'Ὀλυμπία': { roman: 'Olympia', english: 'Olympia' },
+  'Μυκῆναι': { roman: 'Mykēnai', english: 'Mycenae' },
+  'Ῥόδος': { roman: 'Rhodos', english: 'Rhodes' },
+  'Συράκουσαι': { roman: 'Syrakousai', english: 'Syracuse' }
+};
+
 export function createInitialState(seed: string, mapRadius: number = 6): GameState {
   unitIdCounter = 0;
   cityIdCounter = 0;

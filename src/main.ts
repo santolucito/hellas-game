@@ -1,5 +1,5 @@
 import { GameState, coordEquals, coordKey } from './game/types';
-import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, TECHS, UNIT_COSTS } from './game/state';
+import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, TECHS, UNIT_COSTS, CITY_NAME_INFO } from './game/state';
 import { Renderer } from './ui/renderer';
 import { runAI } from './ai/opponent';
 
@@ -225,6 +225,10 @@ class Game {
     if (city && this.state.visible.has(key)) {
       const isVillage = city.owner === null;
       content += `<br><br><strong>${isVillage ? 'Village' : city.name}</strong>`;
+      if (!isVillage && CITY_NAME_INFO[city.name]) {
+        const info = CITY_NAME_INFO[city.name];
+        content += `<br><small style="color:#a0a0a0;">${info.roman} — ${info.english}</small>`;
+      }
       if (isVillage) {
         content += `<br><em>Move a unit here to capture</em>`;
       } else {
@@ -348,7 +352,11 @@ class Game {
     const player = this.state.players[0];
 
     let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
-    html += `<h2 style="margin-bottom:20px;color:#c9a227;">${city.name}</h2>`;
+    html += `<h2 style="margin-bottom:5px;color:#c9a227;">${city.name}</h2>`;
+    if (CITY_NAME_INFO[city.name]) {
+      const info = CITY_NAME_INFO[city.name];
+      html += `<p style="margin-bottom:20px;color:#a0a0a0;font-size:14px;">${info.roman} — ${info.english}</p>`;
+    }
     html += '<p style="margin-bottom:20px;">Your Δρχ: ' + player.drachma + '</p>';
     html += '<h3 style="margin-bottom:15px;">Train Units</h3>';
 
@@ -396,7 +404,11 @@ class Game {
     const canAfford = playerΔρχ >= upgradeCost;
 
     let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
-    html += `<h2 style="margin-bottom:10px;color:#c9a227;">🎉 ${cityName} Level Up!</h2>`;
+    html += `<h2 style="margin-bottom:5px;color:#c9a227;">🎉 ${cityName} Level Up!</h2>`;
+    if (CITY_NAME_INFO[cityName]) {
+      const info = CITY_NAME_INFO[cityName];
+      html += `<p style="margin-bottom:10px;color:#a0a0a0;font-size:14px;">${info.roman} — ${info.english}</p>`;
+    }
     html += `<p style="margin-bottom:10px;color:#9b59b6;">Now Level ${newLevel}</p>`;
     html += `<p style="margin-bottom:20px;color:${canAfford ? '#c9a227' : '#f25c54'};">Upgrade Cost: ${upgradeCost} Δρχ (You have: ${playerΔρχ})</p>`;
     html += '<h3 style="margin-bottom:15px;">Choose a bonus:</h3>';
