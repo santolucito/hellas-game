@@ -61,6 +61,9 @@ class Game {
     // Tech button
     document.getElementById('btn-tech')?.addEventListener('click', () => this.showTechModal());
 
+    // Menu button
+    document.getElementById('btn-menu')?.addEventListener('click', () => this.showMenuModal());
+
     // Restart button
     document.getElementById('btn-restart')?.addEventListener('click', () => {
       window.location.hash = '';
@@ -314,6 +317,28 @@ class Game {
     this.updateHUD();
     document.querySelector('[style*="z-index:200"]')?.remove();
     this.showTechModal();
+  }
+
+  private showMenuModal(): void {
+    let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f0e6d2;padding:20px;">';
+    html += '<h2 style="margin-bottom:30px;color:#c9a227;">Menu</h2>';
+
+    html += `<button class="btn" style="margin:8px;padding:12px 30px;min-width:200px;" onclick="window.gameInstance.restartGame()">Restart Game</button>`;
+    html += `<button class="btn" style="margin:8px;padding:12px 30px;min-width:200px;" onclick="window.gameInstance.newGame()">New Game</button>`;
+
+    html += '<button class="btn" style="margin-top:30px;padding:12px 30px;" onclick="this.parentElement.remove()">Close</button>';
+    html += '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+
+  restartGame(): void {
+    window.location.reload();
+  }
+
+  newGame(): void {
+    window.location.hash = '';
+    window.location.reload();
   }
 
   private showTrainModal(cityId: string): void {
