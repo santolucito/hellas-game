@@ -4,7 +4,7 @@ import { getValidMoves, getValidAttacks, getHarvestableTiles, getValidEmbarkTarg
 
 // Tile sizing
 const TILE_SIZE = 1;
-const TILE_SPACING = 1.1;
+const TILE_SPACING = 1.0;  // No gaps between tiles
 
 // Terrain elevations
 const ELEVATION: Record<Terrain, number> = {
@@ -184,42 +184,64 @@ export class ThreeRenderer {
       if (e.touches.length === 1) {
         this.touchStartX = e.touches[0].clientX;
         this.touchStartY = e.touches[0].clientY;
+        this.lastPanX = e.touches[0].clientX;
+        this.lastPanY = e.touches[0].clientY;
         this.isTouchPanning = false;
         this.touchMoved = false;
       } else if (e.touches.length === 2) {
         this.lastPinchDist = this.getPinchDistance(e.touches);
+        this.lastPanX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        this.lastPanY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       }
     }, { passive: true });
 
     this.canvas.addEventListener('touchmove', (e) => {
       if (e.touches.length === 1) {
-        const dx = e.touches[0].clientX - this.touchStartX;
-        const dy = e.touches[0].clientY - this.touchStartY;
+        const touch = e.touches[0];
+        const dx = touch.clientX - this.lastPanX;
+        const dy = touch.clientY - this.lastPanY;
 
-        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        // Check if moved enough to be considered a drag
+        const totalDist = Math.hypot(touch.clientX - this.touchStartX, touch.clientY - this.touchStartY);
+        if (totalDist > 10) {
           this.isTouchPanning = true;
           this.touchMoved = true;
         }
 
         if (this.isTouchPanning) {
-          this.offsetX -= dx * 0.015 / this.zoom;
-          this.offsetZ -= dy * 0.015 / this.zoom;
-          this.touchStartX = e.touches[0].clientX;
-          this.touchStartY = e.touches[0].clientY;
+          this.offsetX -= dx * 0.02 / this.zoom;
+          this.offsetZ -= dy * 0.02 / this.zoom;
           this.updateCamera();
+          e.preventDefault();
         }
+
+        this.lastPanX = touch.clientX;
+        this.lastPanY = touch.clientY;
       } else if (e.touches.length === 2) {
+        // Pan with two fingers
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        this.offsetX -= (midX - this.lastPanX) * 0.02 / this.zoom;
+        this.offsetZ -= (midY - this.lastPanY) * 0.02 / this.zoom;
+        this.lastPanX = midX;
+        this.lastPanY = midY;
+
+        // Pinch zoom
         const dist = this.getPinchDistance(e.touches);
-        const scale = dist / this.lastPinchDist;
-        this.zoom = Math.max(0.3, Math.min(3, this.zoom * scale));
+        if (this.lastPinchDist > 0) {
+          const scale = dist / this.lastPinchDist;
+          this.zoom = Math.max(0.3, Math.min(3, this.zoom * scale));
+        }
         this.lastPinchDist = dist;
         this.updateCamera();
         this.touchMoved = true;
+        e.preventDefault();
       }
-    }, { passive: true });
+    }, { passive: false });
 
     this.canvas.addEventListener('touchend', () => {
       this.isTouchPanning = false;
+      this.lastPinchDist = 0;
     }, { passive: true });
 
     // Prevent context menu
@@ -318,10 +340,11 @@ export class ThreeRenderer {
       const isDiscovered = state.discovered.has(key);
       const isVisible = state.visible.has(key);
 
-      const pos = this.coordToPosition(tile.coord, tile.terrain);
-      const elevation = ELEVATION[tile.terrain];
+      // Only show elevation for discovered tiles
+      const elevation = isDiscovered ? ELEVATION[tile.terrain] : 0;
+      const pos = this.coordToPosition(tile.coord, isDiscovered ? tile.terrain : 'plains');
 
-      // Create tile mesh with height based on terrain
+      // Create tile mesh with height based on terrain (flat for undiscovered)
       const geometry = new THREE.BoxGeometry(TILE_SIZE, 0.2 + elevation, TILE_SIZE);
       const material = this.getTileMaterial(tile.terrain, isVisible, isDiscovered);
       const mesh = new THREE.Mesh(geometry, material);
