@@ -104,6 +104,24 @@ class Game {
       c => coordEquals(c.coord, coord) && c.owner === 0
     );
 
+    // PRIORITY: Check for embark before unit selection
+    // If a land unit is selected and clicking on a trireme, embark instead of selecting
+    if (this.state.selectedUnitId && tappedUnit && tappedUnit.type === 'trireme') {
+      const selectedUnit = this.state.units.get(this.state.selectedUnitId);
+      if (selectedUnit && selectedUnit.type !== 'trireme') {
+        const validEmbarkTargets = getValidEmbarkTargets(this.state, selectedUnit);
+        if (validEmbarkTargets.some(c => coordEquals(c, coord))) {
+          this.state = executeAction(this.state, {
+            type: 'embark',
+            unitId: selectedUnit.id,
+            triremeId: tappedUnit.id
+          });
+          this.updateHUD();
+          return;
+        }
+      }
+    }
+
     if (tappedUnit) {
       // Select/deselect unit
       if (this.state.selectedUnitId === tappedUnit.id) {
