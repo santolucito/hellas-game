@@ -27,6 +27,7 @@ export interface Unit {
   movement: number;
   movesLeft: number;
   hasAttacked: boolean;
+  passengerId?: string;  // ID of carried unit (triremes only)
 }
 
 export interface City {
@@ -84,13 +85,14 @@ export interface GameState {
 }
 
 export interface GameAction {
-  type: 'select' | 'move' | 'attack' | 'end_turn' | 'research' | 'train' | 'select_city' | 'harvest' | 'choose_bonus';
+  type: 'select' | 'move' | 'attack' | 'end_turn' | 'research' | 'train' | 'select_city' | 'harvest' | 'choose_bonus' | 'embark' | 'disembark';
   unitId?: string;
   cityId?: string;
   targetCoord?: Coord;
   techId?: TechId;
   unitType?: Unit['type'];
   bonus?: CityBonus; // For choose_bonus action
+  triremeId?: string; // For embark action
 }
 
 // Grid utility - using q as x, r as y for square grid

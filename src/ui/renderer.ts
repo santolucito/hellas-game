@@ -1,5 +1,5 @@
 import { GameState, Coord, coordKey, Unit, City, coordsInRadius } from '../game/types';
-import { getValidMoves, getValidAttacks, getHarvestableTiles } from '../game/state';
+import { getValidMoves, getValidAttacks, getHarvestableTiles, getValidEmbarkTargets, getValidDisembarkTargets } from '../game/state';
 
 // Tile rendering constants - Polytopia style isometric
 const TILE_WIDTH = 64;  // Width of isometric diamond
@@ -45,6 +45,8 @@ const COLORS = {
   enemyTerritory: 'rgba(242, 92, 84, 0.15)',    // Subtle enemy territory tint
   harvestable: 'rgba(155, 89, 182, 0.5)',       // Purple for harvestable tiles
   harvested: 'rgba(100, 100, 100, 0.3)',        // Gray overlay for harvested tiles
+  embark: 'rgba(91, 192, 235, 0.6)',            // Cyan for embark targets
+  disembark: 'rgba(255, 200, 100, 0.6)',        // Orange for disembark targets
   white: '#ffffff',
   shadow: 'rgba(0, 0, 0, 0.3)'
 };
@@ -747,6 +749,8 @@ export class Renderer {
     const selectedUnit = state.selectedUnitId ? state.units.get(state.selectedUnitId) : null;
     const validMoves = selectedUnit ? getValidMoves(state, selectedUnit) : [];
     const validAttacks = selectedUnit ? getValidAttacks(state, selectedUnit) : [];
+    const validEmbarkTargets = selectedUnit ? getValidEmbarkTargets(state, selectedUnit) : [];
+    const validDisembarkTargets = selectedUnit ? getValidDisembarkTargets(state, selectedUnit) : [];
 
     // Sort tiles by depth for proper z-ordering (draw from back to front)
     // In isometric view, tiles with lower (q + r) should be drawn first
@@ -835,6 +839,22 @@ export class Renderer {
       this.drawTileOverlay(x, y - elevation * this.scale, 0.85, COLORS.validAttack);
     }
 
+    // Draw valid embark highlights (land unit can board trireme)
+    for (const coord of validEmbarkTargets) {
+      const { x, y } = this.coordToPixel(coord);
+      const tile = state.tiles.get(coordKey(coord));
+      const elevation = tile ? this.getTerrainElevation(tile.terrain) : 0;
+      this.drawTileOverlay(x, y - elevation * this.scale, 0.85, COLORS.embark);
+    }
+
+    // Draw valid disembark highlights (trireme can drop passenger)
+    for (const coord of validDisembarkTargets) {
+      const { x, y } = this.coordToPixel(coord);
+      const tile = state.tiles.get(coordKey(coord));
+      const elevation = tile ? this.getTerrainElevation(tile.terrain) : 0;
+      this.drawTileOverlay(x, y - elevation * this.scale, 0.85, COLORS.disembark);
+    }
+
     // Draw harvestable tile highlights (only when no unit selected during player turn)
     if (!selectedUnit && state.phase === 'player_turn') {
       const harvestableCoords = getHarvestableTiles(state, 0);
@@ -889,6 +909,12 @@ export class Renderer {
       // Only show units in visible range, OR always show player units
       if (unit.owner !== 0 && !state.visible.has(key)) continue;
 
+      // Skip drawing units that are embarked on a trireme
+      const isEmbarked = [...state.units.values()].some(
+        u => u.type === 'trireme' && u.passengerId === unit.id
+      );
+      if (isEmbarked) continue;
+
       const { x, y } = this.coordToPixel(unit.coord);
       const isSelected = state.selectedUnitId === unit.id;
       const hasPhalanx = unit.type === 'hoplite' && state.players[unit.owner].techs.includes('phalanx');
@@ -930,6 +956,22 @@ export class Renderer {
       }
 
       this.drawUnit(x + animShakeX, y + animShakeY, unit, isSelected, hasPhalanx, isOnFriendlyCity, elevation, animScale, animFlash);
+
+      // Draw passenger indicator for triremes carrying units
+      if (unit.type === 'trireme' && unit.passengerId) {
+        const adjustedY = y - elevation * this.scale;
+        const size = TILE_WIDTH * this.scale * 0.15;
+        ctx.font = `bold ${size}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        // Small icon indicating passenger (person emoji or +1)
+        const passengerText = '👤';
+        ctx.strokeText(passengerText, x + animShakeX + size, adjustedY - size * 1.5);
+        ctx.fillText(passengerText, x + animShakeX + size, adjustedY - size * 1.5);
+      }
     }
 
     // Draw selection indicator on selected unit (pulsing ring)

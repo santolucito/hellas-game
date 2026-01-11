@@ -1,5 +1,5 @@
 import { GameState, coordEquals, coordKey } from './game/types';
-import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, TECHS, UNIT_COSTS, CITY_NAME_INFO, UNIT_NAME_INFO } from './game/state';
+import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, getValidEmbarkTargets, getValidDisembarkTargets, TECHS, UNIT_COSTS, CITY_NAME_INFO, UNIT_NAME_INFO } from './game/state';
 import { Renderer } from './ui/renderer';
 import { runAI } from './ai/opponent';
 
@@ -154,6 +154,32 @@ class Game {
           this.checkGameEnd();
         }, 350);
         return; // Don't call updateHUD/checkGameEnd immediately
+      }
+
+      // Check if valid embark (land unit boarding a trireme)
+      const validEmbarkTargets = getValidEmbarkTargets(this.state, currentUnit);
+      if (validEmbarkTargets.some(c => coordEquals(c, coord))) {
+        // Find the trireme at this coord
+        const trireme = [...this.state.units.values()].find(
+          u => u.type === 'trireme' && u.owner === currentUnit.owner && coordEquals(u.coord, coord)
+        );
+        if (trireme) {
+          this.state = executeAction(this.state, {
+            type: 'embark',
+            unitId: currentUnit.id,
+            triremeId: trireme.id
+          });
+        }
+      }
+
+      // Check if valid disembark (trireme dropping passenger on land)
+      const validDisembarkTargets = getValidDisembarkTargets(this.state, currentUnit);
+      if (validDisembarkTargets.some(c => coordEquals(c, coord))) {
+        this.state = executeAction(this.state, {
+          type: 'disembark',
+          unitId: currentUnit.id,
+          targetCoord: coord
+        });
       }
     } else {
       // Check if clicking on a harvestable tile in player territory

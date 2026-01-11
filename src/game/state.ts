@@ -321,6 +321,47 @@ export function getValidAttacks(state: GameState, unit: Unit): Coord[] {
   return attacks;
 }
 
+// Get adjacent friendly triremes that a land unit can embark onto
+export function getValidEmbarkTargets(state: GameState, unit: Unit): Coord[] {
+  if (unit.type === 'trireme') return []; // Triremes can't embark
+  if (unit.movesLeft <= 0) return [];
+
+  const targets: Coord[] = [];
+  for (const neighbor of neighbors(unit.coord)) {
+    const trireme = [...state.units.values()].find(
+      u => u.type === 'trireme' &&
+           u.owner === unit.owner &&
+           coordEquals(u.coord, neighbor) &&
+           !u.passengerId // Must have space
+    );
+    if (trireme) {
+      targets.push(neighbor);
+    }
+  }
+  return targets;
+}
+
+// Get adjacent land tiles where a trireme can disembark its passenger
+export function getValidDisembarkTargets(state: GameState, trireme: Unit): Coord[] {
+  if (trireme.type !== 'trireme') return [];
+  if (!trireme.passengerId) return []; // No passenger
+  if (trireme.movesLeft <= 0) return [];
+
+  const targets: Coord[] = [];
+  for (const neighbor of neighbors(trireme.coord)) {
+    const tile = state.tiles.get(coordKey(neighbor));
+    if (!tile) continue;
+    if (tile.terrain === 'water') continue; // Must be land
+
+    // Check if tile is occupied
+    const occupyingUnit = [...state.units.values()].find(u => coordEquals(u.coord, neighbor));
+    if (occupyingUnit) continue;
+
+    targets.push(neighbor);
+  }
+  return targets;
+}
+
 export function executeAction(state: GameState, action: GameAction): GameState {
   // Clone state for immutability
   const newState: GameState = {
@@ -690,6 +731,70 @@ export function executeAction(state: GameState, action: GameAction): GameState {
           }
 
           newState.cities.set(city.id, updatedCity);
+        }
+      }
+      break;
+
+    case 'embark':
+      // Land unit boards a trireme
+      if (action.unitId && action.triremeId) {
+        const unit = newState.units.get(action.unitId);
+        const trireme = newState.units.get(action.triremeId);
+
+        if (unit && trireme && trireme.type === 'trireme' && !trireme.passengerId) {
+          // Verify they're adjacent
+          const validTargets = getValidEmbarkTargets(state, unit);
+          if (validTargets.some(c => coordEquals(c, trireme.coord))) {
+            // Store the passenger data on the trireme (serialize the unit)
+            const updatedTrireme: Unit = {
+              ...trireme,
+              passengerId: unit.id
+            };
+            newState.units.set(trireme.id, updatedTrireme);
+
+            // Mark the embarking unit as "aboard" - set coord to trireme's coord but with no movement
+            const embarkedUnit: Unit = {
+              ...unit,
+              coord: trireme.coord,  // Same coord as trireme (they're "aboard")
+              movesLeft: 0,
+              hasAttacked: true  // Can't attack while aboard
+            };
+            newState.units.set(unit.id, embarkedUnit);
+          }
+        }
+      }
+      break;
+
+    case 'disembark':
+      // Passenger exits trireme onto land
+      if (action.unitId && action.targetCoord) {
+        const trireme = newState.units.get(action.unitId);
+
+        if (trireme && trireme.type === 'trireme' && trireme.passengerId) {
+          const passenger = newState.units.get(trireme.passengerId);
+
+          if (passenger) {
+            // Verify the target is valid
+            const validTargets = getValidDisembarkTargets(state, trireme);
+            if (validTargets.some(c => coordEquals(c, action.targetCoord!))) {
+              // Place passenger on land
+              const disembarkedUnit: Unit = {
+                ...passenger,
+                coord: action.targetCoord,
+                movesLeft: 0,  // Used movement to disembark
+                hasAttacked: false  // Can attack after disembarking
+              };
+              newState.units.set(passenger.id, disembarkedUnit);
+
+              // Clear passenger from trireme
+              const updatedTrireme: Unit = {
+                ...trireme,
+                passengerId: undefined,
+                movesLeft: 0  // Disembarking uses trireme's movement too
+              };
+              newState.units.set(trireme.id, updatedTrireme);
+            }
+          }
         }
       }
       break;
