@@ -27,7 +27,7 @@ export interface Unit {
   movement: number;
   movesLeft: number;
   hasAttacked: boolean;
-  passengerId?: string;  // ID of carried unit (triremes only)
+  passengerIds?: string[];  // IDs of carried units (triremes only, max 3)
 }
 
 export interface City {

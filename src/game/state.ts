@@ -332,7 +332,7 @@ export function getValidEmbarkTargets(state: GameState, unit: Unit): Coord[] {
       u => u.type === 'trireme' &&
            u.owner === unit.owner &&
            coordEquals(u.coord, neighbor) &&
-           !u.passengerId // Must have space
+           (!u.passengerIds || u.passengerIds.length < 3) // Must have space (max 3)
     );
     if (trireme) {
       targets.push(neighbor);
@@ -344,7 +344,7 @@ export function getValidEmbarkTargets(state: GameState, unit: Unit): Coord[] {
 // Get adjacent land tiles where a trireme can disembark its passenger
 export function getValidDisembarkTargets(state: GameState, trireme: Unit): Coord[] {
   if (trireme.type !== 'trireme') return [];
-  if (!trireme.passengerId) return []; // No passenger
+  if (!trireme.passengerIds || trireme.passengerIds.length === 0) return []; // No passengers
   if (trireme.movesLeft <= 0) return [];
 
   const targets: Coord[] = [];
@@ -741,14 +741,15 @@ export function executeAction(state: GameState, action: GameAction): GameState {
         const unit = newState.units.get(action.unitId);
         const trireme = newState.units.get(action.triremeId);
 
-        if (unit && trireme && trireme.type === 'trireme' && !trireme.passengerId) {
+        const currentPassengers = trireme?.passengerIds || [];
+        if (unit && trireme && trireme.type === 'trireme' && currentPassengers.length < 3) {
           // Verify they're adjacent
           const validTargets = getValidEmbarkTargets(state, unit);
           if (validTargets.some(c => coordEquals(c, trireme.coord))) {
-            // Store the passenger data on the trireme (serialize the unit)
+            // Add passenger to trireme
             const updatedTrireme: Unit = {
               ...trireme,
-              passengerId: unit.id
+              passengerIds: [...currentPassengers, unit.id]
             };
             newState.units.set(trireme.id, updatedTrireme);
 
@@ -770,8 +771,10 @@ export function executeAction(state: GameState, action: GameAction): GameState {
       if (action.unitId && action.targetCoord) {
         const trireme = newState.units.get(action.unitId);
 
-        if (trireme && trireme.type === 'trireme' && trireme.passengerId) {
-          const passenger = newState.units.get(trireme.passengerId);
+        if (trireme && trireme.type === 'trireme' && trireme.passengerIds && trireme.passengerIds.length > 0) {
+          // Disembark the first passenger (could be extended to let user choose)
+          const passengerId = trireme.passengerIds[0];
+          const passenger = newState.units.get(passengerId);
 
           if (passenger) {
             // Verify the target is valid
@@ -786,10 +789,10 @@ export function executeAction(state: GameState, action: GameAction): GameState {
               };
               newState.units.set(passenger.id, disembarkedUnit);
 
-              // Clear passenger from trireme
+              // Remove passenger from trireme's list
               const updatedTrireme: Unit = {
                 ...trireme,
-                passengerId: undefined,
+                passengerIds: trireme.passengerIds.filter(id => id !== passengerId),
                 movesLeft: 0  // Disembarking uses trireme's movement too
               };
               newState.units.set(trireme.id, updatedTrireme);
@@ -820,12 +823,12 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
 export const TECHS: Record<TechId, { name: string; cost: number; description: string }> = {
   phalanx: { name: 'Phalanx', cost: 10, description: '+1 Defense for Hoplites' },
-  seafaring: { name: 'Seafaring', cost: 10, description: 'Unlock Triremes' },
+  seafaring: { name: 'Seafaring', cost: 5, description: 'Unlock Triremes' },
   philosophy: { name: 'Philosophy', cost: 10, description: '+1 Δρχ per city' }
 };
 
 export const UNIT_COSTS: Record<Unit['type'], number> = {
   hoplite: 5,
   peltast: 4,
-  trireme: 8
+  trireme: 4
 };

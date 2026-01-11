@@ -911,7 +911,7 @@ export class Renderer {
 
       // Skip drawing units that are embarked on a trireme
       const isEmbarked = [...state.units.values()].some(
-        u => u.type === 'trireme' && u.passengerId === unit.id
+        u => u.type === 'trireme' && u.passengerIds?.includes(unit.id)
       );
       if (isEmbarked) continue;
 
@@ -958,7 +958,7 @@ export class Renderer {
       this.drawUnit(x + animShakeX, y + animShakeY, unit, isSelected, hasPhalanx, isOnFriendlyCity, elevation, animScale, animFlash);
 
       // Draw passenger indicator for triremes carrying units
-      if (unit.type === 'trireme' && unit.passengerId) {
+      if (unit.type === 'trireme' && unit.passengerIds && unit.passengerIds.length > 0) {
         const adjustedY = y - elevation * this.scale;
         const size = TILE_WIDTH * this.scale * 0.15;
         ctx.font = `bold ${size}px sans-serif`;
@@ -967,8 +967,8 @@ export class Renderer {
         ctx.fillStyle = '#ffffff';
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 2;
-        // Small icon indicating passenger (person emoji or +1)
-        const passengerText = '👤';
+        // Show passenger count
+        const passengerText = `👤${unit.passengerIds.length}`;
         ctx.strokeText(passengerText, x + animShakeX + size, adjustedY - size * 1.5);
         ctx.fillText(passengerText, x + animShakeX + size, adjustedY - size * 1.5);
       }
