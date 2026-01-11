@@ -130,11 +130,13 @@ class Game {
         });
       }
 
-      // Check if valid attack
-      const validAttacks = getValidAttacks(this.state, selectedUnit);
+      // Check if valid attack - refetch unit to get current position after any move
+      const currentUnit = this.state.units.get(selectedUnit.id);
+      if (!currentUnit) return;
+      const validAttacks = getValidAttacks(this.state, currentUnit);
       if (validAttacks.some(c => coordEquals(c, coord))) {
         // Trigger attack animation
-        this.renderer.triggerAttackAnimation(selectedUnit.coord, coord);
+        this.renderer.triggerAttackAnimation(currentUnit.coord, coord);
         const attackerId = selectedUnit.id;
         const targetCoord = coord;
 
