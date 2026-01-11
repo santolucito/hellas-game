@@ -10,9 +10,9 @@ let cityIdCounter = 0;
 
 export function createUnit(type: Unit['type'], owner: PlayerId, coord: Coord): Unit {
   const stats = {
-    hoplite: { hp: 10, attack: 3, defense: 2, movement: 2 },
-    peltast: { hp: 8, attack: 2, defense: 1, movement: 3 },
-    trireme: { hp: 12, attack: 4, defense: 2, movement: 4 }
+    hoplite: { hp: 5, attack: 3, defense: 2, movement: 2 },
+    peltast: { hp: 4, attack: 2, defense: 1, movement: 3 },
+    trireme: { hp: 6, attack: 4, defense: 2, movement: 4 }
   }[type];
 
   return {

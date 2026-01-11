@@ -181,7 +181,7 @@ describe('Tech Effects', () => {
     // With phalanx (+1 def = 3), counter damage = floor((3 - 3) / 2) = 0
     // So player should take no counter damage
     expect(updatedPlayer).toBeDefined();
-    expect(updatedPlayer!.hp).toBe(10); // Full HP, no counter damage
+    expect(updatedPlayer!.hp).toBe(5); // Full HP, no counter damage
   });
 
   it('philosophy tech increases city income', () => {
@@ -215,7 +215,7 @@ describe('Healing', () => {
     state.units.set(playerUnit!.id, {
       ...playerUnit!,
       coord: playerCity!.coord,
-      hp: 5 // Damaged
+      hp: 3 // Damaged
     });
 
     // End player turn, then AI turn to trigger healing
@@ -224,7 +224,7 @@ describe('Healing', () => {
 
     const healedUnit = state.units.get(playerUnit!.id);
     expect(healedUnit).toBeDefined();
-    expect(healedUnit!.hp).toBe(7); // 5 + 2 healing
+    expect(healedUnit!.hp).toBe(5); // 3 + 2 healing = 5 (capped at maxHp)
   });
 
   it('units do not overheal past maxHp', () => {
@@ -233,18 +233,18 @@ describe('Healing', () => {
     const playerUnit = [...state.units.values()].find(u => u.owner === 0);
     const playerCity = [...state.cities.values()].find(c => c.owner === 0);
 
-    // Unit at 9 HP on city
+    // Unit at 4 HP on city (1 below max)
     state.units.set(playerUnit!.id, {
       ...playerUnit!,
       coord: playerCity!.coord,
-      hp: 9
+      hp: 4
     });
 
     state = executeAction(state, { type: 'end_turn' });
     state = executeAction(state, { type: 'end_turn' });
 
     const healedUnit = state.units.get(playerUnit!.id);
-    expect(healedUnit!.hp).toBe(10); // Capped at maxHp
+    expect(healedUnit!.hp).toBe(5); // Capped at maxHp
   });
 });
 
