@@ -95,9 +95,17 @@ class Game {
     const coord = this.renderer.getCoordAtPixel(x, y, this.state.tiles);
 
     // Check if tapping on own unit
-    const tappedUnit = [...this.state.units.values()].find(
+    // Prefer triremes over embarked passengers (passengers share trireme's coord)
+    const unitsAtCoord = [...this.state.units.values()].filter(
       u => coordEquals(u.coord, coord) && u.owner === 0
     );
+    // Sort: triremes first, then other units
+    unitsAtCoord.sort((a, b) => {
+      if (a.type === 'trireme' && b.type !== 'trireme') return -1;
+      if (b.type === 'trireme' && a.type !== 'trireme') return 1;
+      return 0;
+    });
+    const tappedUnit = unitsAtCoord[0];
 
     // Check if tapping on own city
     const tappedCity = [...this.state.cities.values()].find(

@@ -398,6 +398,20 @@ export function executeAction(state: GameState, action: GameAction): GameState {
             };
             newState.units.set(unit.id, updatedUnit);
 
+            // If this is a trireme with passengers, move passengers too
+            if (unit.type === 'trireme' && unit.passengerIds) {
+              for (const passengerId of unit.passengerIds) {
+                const passenger = newState.units.get(passengerId);
+                if (passenger) {
+                  const movedPassenger: Unit = {
+                    ...passenger,
+                    coord: action.targetCoord
+                  };
+                  newState.units.set(passengerId, movedPassenger);
+                }
+              }
+            }
+
             // Check for city capture: if moving onto a neutral village or undefended enemy city, capture it
             const cityOnCoord = [...newState.cities.values()].find(
               c => coordEquals(c.coord, action.targetCoord!) && c.owner !== unit.owner
@@ -746,10 +760,11 @@ export function executeAction(state: GameState, action: GameAction): GameState {
           // Verify they're adjacent
           const validTargets = getValidEmbarkTargets(state, unit);
           if (validTargets.some(c => coordEquals(c, trireme.coord))) {
-            // Add passenger to trireme
+            // Add passenger to trireme and exhaust the trireme
             const updatedTrireme: Unit = {
               ...trireme,
-              passengerIds: [...currentPassengers, unit.id]
+              passengerIds: [...currentPassengers, unit.id],
+              movesLeft: 0  // Trireme is exhausted after boarding
             };
             newState.units.set(trireme.id, updatedTrireme);
 
