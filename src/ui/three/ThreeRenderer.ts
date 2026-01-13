@@ -20,8 +20,8 @@ const COLORS = {
   forest: 0x3d8c40,
   hills: 0xc9a86c,
   water: 0x4a9bd9,
-  fog: 0x1e3a5f,
-  unexplored: 0x2a4a6f,
+  fog: 0xffffff,
+  unexplored: 0xffffff,
   player: 0x5bc0eb,
   enemy: 0xf25c54,
   neutral: 0xb8b8b8,
@@ -53,6 +53,7 @@ export class ThreeRenderer {
   private unitsGroup: THREE.Group;
   private citiesGroup: THREE.Group;
   private fogGroup: THREE.Group;
+  private starsGroup: THREE.Group;
 
   // Raycaster for click detection
   private raycaster: THREE.Raycaster;
@@ -92,7 +93,7 @@ export class ThreeRenderer {
       antialias: true,
       alpha: false
     });
-    this.renderer.setClearColor(0x1a1a2e);
+    this.renderer.setClearColor(0x0a0a1a);  // Dark space background
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     // Setup scene
@@ -112,25 +113,37 @@ export class ThreeRenderer {
     this.camera.lookAt(0, 0, 0);
 
     // Create groups
+    this.starsGroup = new THREE.Group();
     this.tilesGroup = new THREE.Group();
     this.overlaysGroup = new THREE.Group();
     this.unitsGroup = new THREE.Group();
     this.citiesGroup = new THREE.Group();
     this.fogGroup = new THREE.Group();
 
+    // Create starfield background
+    this.createStarfield();
+
+    this.scene.add(this.starsGroup);
     this.scene.add(this.tilesGroup);
     this.scene.add(this.overlaysGroup);
     this.scene.add(this.citiesGroup);
     this.scene.add(this.unitsGroup);
     this.scene.add(this.fogGroup);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    this.scene.add(ambientLight);
+    // Lighting - Natural daylight setup
+    // Hemisphere light: sky color (light blue) to ground color (soft green reflection)
+    const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x98d982, 0.6);
+    this.scene.add(hemisphereLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 5);
-    this.scene.add(directionalLight);
+    // Main sunlight - warm white for natural daylight feel
+    const sunLight = new THREE.DirectionalLight(0xfff4e5, 1.0);
+    sunLight.position.set(5, 10, 5);
+    this.scene.add(sunLight);
+
+    // Subtle fill light from opposite side to soften shadows
+    const fillLight = new THREE.DirectionalLight(0xe8f4ff, 0.3);
+    fillLight.position.set(-5, 5, -5);
+    this.scene.add(fillLight);
 
     // Raycaster for picking
     this.raycaster = new THREE.Raycaster();
@@ -259,6 +272,38 @@ export class ThreeRenderer {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  private createStarfield(): void {
+    const starCount = 500;
+    const positions = new Float32Array(starCount * 3);
+    const sizes = new Float32Array(starCount);
+
+    // Create stars spread across a large plane behind the game
+    for (let i = 0; i < starCount; i++) {
+      // Spread stars in a dome-like pattern
+      positions[i * 3] = (Math.random() - 0.5) * 200;     // x
+      positions[i * 3 + 1] = -5 + Math.random() * -50;    // y (below the game, visible as background)
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 200; // z
+
+      // Vary star sizes for depth
+      sizes[i] = Math.random() * 2 + 0.5;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const material = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.3,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.8
+    });
+
+    const stars = new THREE.Points(geometry, material);
+    this.starsGroup.add(stars);
+  }
+
   // Convert screen-space drag to world-space for isometric 45-degree view
   private screenToWorldDrag(dx: number, dy: number): { worldX: number; worldZ: number } {
     // Rotate by -45 degrees to match isometric camera angle
@@ -290,6 +335,14 @@ export class ThreeRenderer {
       this.offsetX,
       0,
       this.offsetZ
+    );
+
+    // Parallax effect: stars move slower than the camera (0.3x speed)
+    const parallaxFactor = 0.3;
+    this.starsGroup.position.set(
+      this.offsetX * parallaxFactor,
+      0,
+      this.offsetZ * parallaxFactor
     );
 
     this.camera.updateProjectionMatrix();
