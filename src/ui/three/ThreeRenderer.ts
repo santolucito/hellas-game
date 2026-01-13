@@ -20,8 +20,8 @@ const COLORS = {
   forest: 0x3d8c40,
   hills: 0xc9a86c,
   water: 0x4a9bd9,
-  fog: 0xffffff,
-  unexplored: 0xffffff,
+  fog: 0xe8e8e8,
+  unexplored: 0x888888,
   player: 0x5bc0eb,
   enemy: 0xf25c54,
   neutral: 0xb8b8b8,
@@ -273,35 +273,61 @@ export class ThreeRenderer {
   }
 
   private createStarfield(): void {
-    const starCount = 500;
+    const starCount = 800;
     const positions = new Float32Array(starCount * 3);
-    const sizes = new Float32Array(starCount);
 
-    // Create stars spread across a large plane behind the game
+    // Create stars on a large sphere surrounding the scene
     for (let i = 0; i < starCount; i++) {
-      // Spread stars in a dome-like pattern
-      positions[i * 3] = (Math.random() - 0.5) * 200;     // x
-      positions[i * 3 + 1] = -5 + Math.random() * -50;    // y (below the game, visible as background)
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 200; // z
+      // Spherical distribution for surrounding stars
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      const radius = 80 + Math.random() * 40; // Distance from center
 
-      // Vary star sizes for depth
-      sizes[i] = Math.random() * 2 + 0.5;
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.cos(phi) * 0.3 - 10; // Flatten and shift down
+      positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
     }
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
     const material = new THREE.PointsMaterial({
       color: 0xffffff,
-      size: 0.3,
+      size: 0.5,
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.8
+      opacity: 0.9
     });
 
     const stars = new THREE.Points(geometry, material);
     this.starsGroup.add(stars);
+
+    // Add some brighter "feature" stars
+    const brightStarCount = 50;
+    const brightPositions = new Float32Array(brightStarCount * 3);
+    for (let i = 0; i < brightStarCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      const radius = 70 + Math.random() * 30;
+
+      brightPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      brightPositions[i * 3 + 1] = radius * Math.cos(phi) * 0.3 - 10;
+      brightPositions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+    }
+
+    const brightGeometry = new THREE.BufferGeometry();
+    brightGeometry.setAttribute('position', new THREE.BufferAttribute(brightPositions, 3));
+
+    const brightMaterial = new THREE.PointsMaterial({
+      color: 0xffffee,
+      size: 1.2,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 1.0
+    });
+
+    const brightStars = new THREE.Points(brightGeometry, brightMaterial);
+    this.starsGroup.add(brightStars);
   }
 
   // Convert screen-space drag to world-space for isometric 45-degree view
@@ -424,6 +450,11 @@ export class ThreeRenderer {
 
       this.tilesGroup.add(mesh);
       this.tileRefs.set(key, mesh);
+
+      // Add fog clouds for discovered but not visible tiles
+      if (isDiscovered && !isVisible) {
+        this.createFogCloud(tile.coord, tile.terrain);
+      }
     }
 
     // Render overlays (valid moves, attacks, etc.)
@@ -650,6 +681,44 @@ export class ThreeRenderer {
           child.material.dispose();
         }
       }
+    }
+  }
+
+  private createFogCloud(coord: Coord, terrain: Terrain): void {
+    const pos = this.coordToPosition(coord, terrain);
+    const baseY = ELEVATION[terrain] + 0.3;
+
+    // Create multiple overlapping spheres for puffy cloud effect
+    const cloudPuffs = 4 + Math.floor(Math.random() * 3);
+    const time = this.animationFrame * 0.02;
+    const coordSeed = coord.q * 137 + coord.r * 311; // Deterministic seed per tile
+
+    for (let i = 0; i < cloudPuffs; i++) {
+      const puffSeed = coordSeed + i * 73;
+      const size = 0.15 + (Math.sin(puffSeed) * 0.5 + 0.5) * 0.2;
+
+      // Offset each puff slightly, with gentle animation
+      const angle = (puffSeed % 628) / 100;
+      const dist = 0.15 + (Math.cos(puffSeed * 1.3) * 0.5 + 0.5) * 0.15;
+      const bobOffset = Math.sin(time + puffSeed * 0.1) * 0.05;
+
+      const puffX = pos.x + Math.cos(angle) * dist;
+      const puffZ = pos.z + Math.sin(angle) * dist;
+      const puffY = baseY + (i * 0.08) + bobOffset;
+
+      const geometry = new THREE.SphereGeometry(size, 8, 6);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.7 - (i * 0.08),
+        depthWrite: false
+      });
+
+      const puff = new THREE.Mesh(geometry, material);
+      puff.position.set(puffX, puffY, puffZ);
+      puff.scale.set(1.2, 0.6, 1.2); // Flatten clouds
+
+      this.fogGroup.add(puff);
     }
   }
 
