@@ -6,7 +6,31 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <title>Hellas - Greek Strategy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --color-bg: #1a1a2e;
+      --color-gold: #c9a227;
+      --color-gold-light: #e0c060;
+      --color-gold-dim: rgba(201,162,39,0.2);
+      --color-gold-glow: rgba(201,162,39,0.5);
+      --color-text: #f0e6d2;
+      --color-text-dim: #999;
+      --color-panel-bg: rgba(10,10,30,0.85);
+      --color-overlay-bg: rgba(5,5,20,0.92);
+      --color-green: #7ec850;
+      --color-red: #f25c54;
+      --color-purple: #9b59b6;
+      --font-display: 'Cinzel', Georgia, serif;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --transition-fast: 0.15s ease;
+      --transition-normal: 0.25s ease;
+    }
     * {
       margin: 0;
       padding: 0;
@@ -18,7 +42,7 @@
       overflow: hidden;
       background: #1a1a2e;
       touch-action: none;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: var(--font-body);
     }
     #game-container {
       width: 100%;
@@ -39,8 +63,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
-      color: #f0e6d2;
+      background: linear-gradient(180deg, rgba(5,5,20,0.8) 0%, transparent 100%);
+      color: var(--color-text);
       font-size: 16px;
       pointer-events: none;
     }
@@ -49,13 +73,40 @@
     }
     .hud-left, .hud-right {
       display: flex;
-      gap: 16px;
+      gap: 10px;
       align-items: center;
     }
-    .resource {
+    .hud-badge {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+      padding: 6px 14px;
+      background: var(--color-panel-bg);
+      border: 1px solid rgba(201,162,39,0.4);
+      border-radius: 20px;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      font-size: 15px;
+    }
+    .hud-badge .badge-icon {
+      font-size: 16px;
+    }
+    .hud-badge .badge-value {
+      font-family: var(--font-display);
+      font-weight: 600;
+      color: var(--color-gold-light);
+    }
+    .hud-badge .badge-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--color-text-dim);
+    }
+    .hud-badge .badge-income {
+      font-size: 12px;
+      color: var(--color-green);
+      font-family: var(--font-body);
+      font-weight: 400;
     }
     #controls {
       position: absolute;
@@ -66,50 +117,79 @@
       display: flex;
       justify-content: center;
       gap: 12px;
-      background: linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+      background: linear-gradient(0deg, rgba(5,5,20,0.8) 0%, transparent 100%);
     }
     .btn {
       padding: 12px 24px;
-      font-size: 16px;
+      font-family: var(--font-display);
+      font-size: 15px;
       font-weight: 600;
-      border: 2px solid #c9a227;
-      background: rgba(201, 162, 39, 0.2);
-      color: #f0e6d2;
-      border-radius: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border: 2px solid var(--color-gold);
+      background: var(--color-gold-dim);
+      color: var(--color-text);
+      border-radius: var(--radius-md);
       cursor: pointer;
       touch-action: manipulation;
-      transition: all 0.2s;
+      transition: all var(--transition-normal);
+    }
+    .btn:hover {
+      background: rgba(201, 162, 39, 0.35);
+      box-shadow: 0 0 12px rgba(201,162,39,0.4);
+      border-color: var(--color-gold-light);
+    }
+    .btn:focus-visible {
+      outline: 2px solid var(--color-gold-light);
+      outline-offset: 2px;
     }
     .btn:active {
-      background: rgba(201, 162, 39, 0.5);
+      background: var(--color-gold-glow);
       transform: scale(0.95);
     }
     .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .btn:disabled:hover {
+      box-shadow: none;
+      background: var(--color-gold-dim);
+      border-color: var(--color-gold);
+    }
     #tooltip {
       position: absolute;
-      background: rgba(0,0,0,0.85);
-      color: #f0e6d2;
+      background: var(--color-panel-bg);
+      color: var(--color-text);
       padding: 8px 12px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 14px;
       pointer-events: none;
+      max-width: 220px;
+      border: 1px solid var(--color-gold-glow);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      opacity: 0;
       display: none;
-      max-width: 200px;
-      border: 1px solid #555;
+      transition: opacity var(--transition-fast);
+    }
+    #tooltip.visible {
+      display: block;
+      opacity: 1;
+    }
+    #tooltip strong {
+      color: var(--color-gold);
     }
     #debug {
       position: absolute;
       top: 50px;
       right: 10px;
-      background: rgba(0,0,0,0.8);
+      background: var(--color-panel-bg);
       color: #0f0;
       padding: 8px;
       font-family: monospace;
       font-size: 12px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       display: none;
     }
     #debug.visible {
@@ -119,17 +199,31 @@
       position: absolute;
       bottom: 80px;
       left: 16px;
-      background: rgba(0,0,0,0.85);
-      color: #f0e6d2;
+      background: var(--color-panel-bg);
+      color: var(--color-text);
       padding: 12px 16px;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       font-size: 14px;
       min-width: 160px;
-      border: 2px solid #c9a227;
+      border: 2px solid var(--color-gold);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       display: none;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity var(--transition-normal), transform var(--transition-normal);
     }
     #unit-panel.visible {
       display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @starting-style {
+      #unit-panel.visible {
+        opacity: 0;
+        transform: translateY(8px);
+      }
     }
     #unit-panel .unit-header {
       display: flex;
@@ -143,9 +237,10 @@
       font-size: 28px;
     }
     #unit-panel .unit-name {
+      font-family: var(--font-display);
       font-size: 18px;
       font-weight: 600;
-      color: #c9a227;
+      color: var(--color-gold);
     }
     #unit-panel .unit-stats {
       display: grid;
@@ -153,23 +248,26 @@
       gap: 4px 12px;
     }
     #unit-panel .stat-label {
-      color: #999;
+      color: var(--color-text-dim);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
     }
     #unit-panel .stat-value {
       text-align: right;
       font-weight: 500;
     }
     #unit-panel .hp-bar {
-      height: 8px;
+      height: 6px;
       background: rgba(0,0,0,0.5);
-      border-radius: 4px;
+      border-radius: 3px;
       margin-top: 10px;
       overflow: hidden;
     }
     #unit-panel .hp-bar-fill {
       height: 100%;
-      border-radius: 4px;
-      transition: width 0.3s;
+      border-radius: 3px;
+      transition: width 0.3s ease;
     }
     #unit-panel .status-row {
       margin-top: 8px;
@@ -179,10 +277,10 @@
       color: #888;
     }
     #unit-panel .status-row .can-act {
-      color: #7ec850;
+      color: var(--color-green);
     }
     #unit-panel .status-row .cannot-act {
-      color: #f25c54;
+      color: var(--color-red);
     }
     #victory-screen {
       position: absolute;
@@ -190,25 +288,129 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0,0,0,0.9);
+      background: radial-gradient(ellipse at center, rgba(20,20,50,0.92) 0%, rgba(5,5,15,0.97) 70%);
       display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      color: #f0e6d2;
+      color: var(--color-text);
       z-index: 100;
+      opacity: 0;
+      transition: opacity 0.4s ease;
     }
     #victory-screen.visible {
       display: flex;
+      opacity: 1;
+    }
+    @starting-style {
+      #victory-screen.visible {
+        opacity: 0;
+      }
     }
     #victory-screen h1 {
-      font-size: 32px;
+      font-family: var(--font-display);
+      font-size: 42px;
       margin-bottom: 20px;
-      color: #c9a227;
+      color: var(--color-gold);
+      text-shadow: 0 0 20px var(--color-gold-glow), 0 0 40px rgba(201,162,39,0.25);
     }
     #victory-screen p {
       font-size: 18px;
       margin-bottom: 30px;
+    }
+    #victory-stats {
+      text-align: left;
+      margin-bottom: 20px;
+      padding: 15px 20px;
+      background: var(--color-panel-bg);
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(201,162,39,0.3);
+    }
+
+    /* Modal system */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--color-overlay-bg);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text);
+      padding: 20px;
+      opacity: 0;
+      transition: opacity var(--transition-normal);
+    }
+    .modal-overlay.modal-open {
+      opacity: 1;
+    }
+    .modal-overlay h2 {
+      font-family: var(--font-display);
+      margin-bottom: 10px;
+      color: var(--color-gold);
+    }
+    .modal-overlay h3 {
+      margin-bottom: 15px;
+    }
+    .modal-overlay p {
+      margin-bottom: 20px;
+    }
+    .modal-card {
+      margin: 6px;
+      padding: 12px 20px;
+      border: 2px solid var(--color-gold);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    }
+    .modal-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .modal-card--affordable {
+      background: rgba(201,162,39,0.2);
+    }
+    .modal-card--affordable:hover {
+      border-color: var(--color-gold-light);
+      box-shadow: 0 4px 16px rgba(201,162,39,0.2);
+    }
+    .modal-card--unaffordable {
+      background: rgba(128,128,128,0.2);
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+    .modal-card--unaffordable:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .modal-card--owned {
+      background: rgba(46,204,113,0.25);
+      border-color: #27ae60;
+      cursor: default;
+    }
+    .modal-card--owned:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .modal-card--levelup {
+      background: rgba(155,89,182,0.2);
+      border-color: var(--color-purple);
+      min-width: 250px;
+      text-align: center;
+    }
+    .modal-card--levelup:hover {
+      border-color: #b86fd6;
+      box-shadow: 0 4px 16px rgba(155,89,182,0.2);
+    }
+    .modal-card strong {
+      color: var(--color-text);
+    }
+    .modal-card small {
+      color: var(--color-text-dim);
     }
   </style>
 </head>
@@ -217,11 +419,11 @@
     <canvas id="game-canvas"></canvas>
     <div id="hud">
       <div class="hud-left">
-        <span class="resource"><span id="drachma">0</span> Δρχ <span id="income" style="color:#7ec850;"></span></span>
-        <span class="resource">⚔ <span id="unit-count">0</span></span>
+        <span class="hud-badge"><span class="badge-icon">🪙</span> <span class="badge-value" id="drachma">0</span></span>
+        <span class="hud-badge"><span class="badge-icon">⚔</span> <span class="badge-value" id="unit-count">0</span></span>
       </div>
       <div class="hud-right">
-        <span>Turn <span id="turn-num">1</span></span>
+        <span class="hud-badge"><span class="badge-label">TURN</span> <span class="badge-value" id="turn-num">1</span></span>
       </div>
     </div>
     <div id="controls">
@@ -264,7 +466,7 @@
     <div id="victory-screen">
       <h1 id="victory-title">Victory!</h1>
       <p id="victory-message">You have conquered the enemy!</p>
-      <div id="victory-stats" style="text-align:left;margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.1);border-radius:8px;"></div>
+      <div id="victory-stats"></div>
       <button class="btn" id="btn-restart">Play Again</button>
     </div>
   </div>

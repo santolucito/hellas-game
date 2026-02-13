@@ -237,13 +237,31 @@ export function getTerrainCost(terrain: Tile['terrain']): number {
   }
 }
 
-export function getValidMoves(state: GameState, unit: Unit): Coord[] {
-  if (unit.movesLeft <= 0) return [];
+function getCityIncome(state: GameState, city: City): number {
+  if (city.owner === null) return 0;
+  let income = city.level;
+  if (city.isCapital) income += 1;
+  if (city.bonuses.includes('workshop')) income += 1;
+  if (state.players[city.owner].techs.includes('philosophy')) income += 1;
+  return income;
+}
 
-  const validMoves: Coord[] = [];
+export function getPlayerIncome(state: GameState, playerId: number): number {
+  let total = 0;
+  for (const city of state.cities.values()) {
+    if (city.owner === playerId) {
+      total += getCityIncome(state, city);
+    }
+  }
+  return total;
+}
+
+// BFS that returns reachable coords with their path costs
+export function getMoveCosts(state: GameState, unit: Unit): Map<string, number> {
   const visited = new Map<string, number>();
-  const queue: { coord: Coord; cost: number }[] = [{ coord: unit.coord, cost: 0 }];
+  if (unit.movesLeft <= 0) return visited;
 
+  const queue: { coord: Coord; cost: number }[] = [{ coord: unit.coord, cost: 0 }];
   visited.set(coordKey(unit.coord), 0);
 
   while (queue.length > 0) {
@@ -274,11 +292,28 @@ export function getValidMoves(state: GameState, unit: Unit): Coord[] {
 
       visited.set(key, totalCost);
 
-      // Can move here if no enemy unit (attack is separate)
+      // Can path through empty tiles (not through enemies)
       if (!occupyingUnit) {
-        validMoves.push(neighbor);
         queue.push({ coord: neighbor, cost: totalCost });
       }
+    }
+  }
+
+  return visited;
+}
+
+export function getValidMoves(state: GameState, unit: Unit): Coord[] {
+  const costMap = getMoveCosts(state, unit);
+  const validMoves: Coord[] = [];
+
+  for (const [key] of costMap) {
+    if (key === coordKey(unit.coord)) continue; // Exclude starting position
+    const tile = state.tiles.get(key);
+    if (!tile) continue;
+    // Ensure destination is not occupied by any unit
+    const occupyingUnit = [...state.units.values()].find(u => coordKey(u.coord) === key);
+    if (!occupyingUnit) {
+      validMoves.push(tile.coord);
     }
   }
 
@@ -389,12 +424,14 @@ export function executeAction(state: GameState, action: GameAction): GameState {
       if (action.unitId && action.targetCoord) {
         const unit = newState.units.get(action.unitId);
         if (unit) {
-          const validMoves = getValidMoves(state, unit);
-          if (validMoves.some(c => coordEquals(c, action.targetCoord!))) {
+          const costMap = getMoveCosts(state, unit);
+          const targetKey = coordKey(action.targetCoord);
+          const pathCost = costMap.get(targetKey);
+          if (pathCost !== undefined && pathCost > 0) {
             const updatedUnit: Unit = {
               ...unit,
               coord: action.targetCoord,
-              movesLeft: 0  // Moving consumes all movement for the turn
+              movesLeft: Math.max(0, unit.movesLeft - pathCost)
             };
             newState.units.set(unit.id, updatedUnit);
 
@@ -567,28 +604,8 @@ export function executeAction(state: GameState, action: GameAction): GameState {
 
         // Income from cities (Polytopia-style: 1 drachma per city level)
         for (const city of newState.cities.values()) {
-          // Skip neutral villages
           if (city.owner === null) continue;
-
-          // Base income: 1 per city level
-          let income = city.level;
-
-          // Capital bonus: +1
-          if (city.isCapital) {
-            income += 1;
-          }
-
-          // Workshop bonus: +1 per workshop
-          if (city.bonuses.includes('workshop')) {
-            income += 1;
-          }
-
-          // Philosophy tech: +1 drachma per city
-          if (newState.players[city.owner].techs.includes('philosophy')) {
-            income += 1;
-          }
-
-          newState.players[city.owner].drachma += income;
+          newState.players[city.owner].drachma += getCityIncome(newState, city);
         }
       }
       newState.selectedUnitId = null;
@@ -694,7 +711,15 @@ export function executeAction(state: GameState, action: GameAction): GameState {
           if (!isAdjacentToCity) break;
         }
 
+        // Check drachma cost
+        const harvestInfo = HARVEST_COSTS[tile.terrain];
+        const harvestCost = harvestInfo ? harvestInfo.cost : 0;
+        if (newState.players[playerId].drachma < harvestCost) break;
+
         if (popGain > 0) {
+          // Deduct cost
+          newState.players[playerId].drachma -= harvestCost;
+
           // Mark tile as harvested
           const updatedTile = { ...tile, harvested: true };
           newState.tiles.set(targetKey, updatedTile);
@@ -845,4 +870,10 @@ export const UNIT_COSTS: Record<Unit['type'], number> = {
   hoplite: 5,
   peltast: 4,
   trireme: 4
+};
+
+export const HARVEST_COSTS: Record<string, { cost: number; name: string; icon: string; verb: string }> = {
+  forest: { cost: 2, name: 'Hunting Grounds', icon: '🦌', verb: 'Develop' },
+  hills:  { cost: 3, name: 'Silver Mine', icon: '⛏', verb: 'Develop' },
+  water:  { cost: 2, name: 'Fishing Port', icon: '🐟', verb: 'Build' },
 };

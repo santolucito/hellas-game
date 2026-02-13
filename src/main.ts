@@ -1,5 +1,5 @@
 import { GameState, coordEquals, coordKey } from './game/types';
-import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, getValidEmbarkTargets, getValidDisembarkTargets, TECHS, UNIT_COSTS, CITY_NAME_INFO, UNIT_NAME_INFO } from './game/state';
+import { createInitialState, executeAction, updateVisibility, getValidMoves, getValidAttacks, getHarvestableTiles, getPlayerIncome, getValidEmbarkTargets, getValidDisembarkTargets, TECHS, UNIT_COSTS, HARVEST_COSTS, CITY_NAME_INFO, UNIT_NAME_INFO } from './game/state';
 import { ThreeRenderer as Renderer } from './ui/three/ThreeRenderer';
 import { runAI } from './ai/opponent';
 
@@ -20,6 +20,8 @@ class Game {
   private frameCount = 0;
   private fps = 0;
   private debugVisible = false;
+  private currentModal: HTMLElement | null = null;
+  private tooltipHideTimer: number | null = null;
 
   constructor() {
     this.canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -34,6 +36,65 @@ class Game {
     this.updateHUD();
     this.updateDebug();
     this.gameLoop();
+
+    // Expose test API in dev mode for Playwright e2e tests
+    if (import.meta.env.DEV) {
+      (window as any).testAPI = {
+        getState: () => this.state,
+        getPhase: () => this.state.phase,
+        getTurn: () => this.state.turn,
+        getUnits: () => [...this.state.units.values()],
+        getCities: () => [...this.state.cities.values()],
+        getPlayerDrachma: () => this.state.players[0].drachma,
+        endTurn: () => {
+          this.endTurn();
+          // Wait for AI to finish (AI runs with setTimeout delays)
+          return new Promise<void>((resolve) => {
+            const check = () => {
+              if (this.state.phase === 'player_turn' || this.state.phase === 'victory' || this.state.phase === 'defeat') {
+                resolve();
+              } else {
+                setTimeout(check, 100);
+              }
+            };
+            setTimeout(check, 600);
+          });
+        },
+        tapCoord: (q: number, r: number) => {
+          const pixel = this.renderer.coordToPixel({ q, r });
+          this.handleTap(pixel.x, pixel.y);
+        },
+        selectUnit: (unitId: string) => {
+          this.state = executeAction(this.state, { type: 'select', unitId });
+          this.updateHUD();
+        },
+        moveUnit: (unitId: string, q: number, r: number) => {
+          this.state = executeAction(this.state, { type: 'move', unitId, targetCoord: { q, r } });
+          this.updateHUD();
+        },
+        attackUnit: (unitId: string, q: number, r: number) => {
+          this.state = executeAction(this.state, { type: 'attack', unitId, targetCoord: { q, r } });
+          this.updateHUD();
+        },
+        trainUnit: (cityId: string, unitType: string) => {
+          this.trainUnit(cityId, unitType as any);
+        },
+        research: (techId: string) => {
+          this.research(techId);
+        },
+        harvest: (q: number, r: number) => {
+          this.state = executeAction(this.state, { type: 'harvest', targetCoord: { q, r } });
+          this.updateHUD();
+        },
+        waitForRender: () => {
+          return new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => resolve());
+            });
+          });
+        },
+      };
+    }
   }
 
   private setupEventListeners(): void {
@@ -84,6 +145,32 @@ class Game {
     });
   }
 
+  private openModal(html: string): void {
+    this.closeModal();
+    document.body.insertAdjacentHTML('beforeend', html);
+    this.currentModal = document.body.lastElementChild as HTMLElement;
+    // Trigger open animation on next frame
+    requestAnimationFrame(() => {
+      this.currentModal?.classList.add('modal-open');
+    });
+  }
+
+  private closeModal(): void {
+    if (this.currentModal) {
+      this.currentModal.remove();
+      this.currentModal = null;
+    }
+  }
+
+  closeCurrentModal(): void {
+    this.closeModal();
+  }
+
+  closeTrainModal(): void {
+    this.closeModal();
+    this.deselectCity();
+  }
+
   private handleClick(e: MouseEvent): void {
     const rect = this.canvas.getBoundingClientRect();
     this.handleTap(e.clientX - rect.left, e.clientY - rect.top);
@@ -130,10 +217,19 @@ class Game {
       }
     }
 
+    // Check if tile is harvestable (needed for cycling)
+    const harvestableCoords = getHarvestableTiles(this.state, 0);
+    const isHarvestable = harvestableCoords.some(c => coordEquals(c, coord));
+
     if (tappedUnit) {
-      // Select/deselect unit
       if (this.state.selectedUnitId === tappedUnit.id) {
-        this.state = executeAction(this.state, { type: 'select', unitId: undefined });
+        // Already selected — cycle: if harvestable, show harvest modal; otherwise deselect
+        if (isHarvestable) {
+          this.state = executeAction(this.state, { type: 'select', unitId: undefined });
+          this.showHarvestModal(coord);
+        } else {
+          this.state = executeAction(this.state, { type: 'select', unitId: undefined });
+        }
       } else {
         this.state = executeAction(this.state, { type: 'select', unitId: tappedUnit.id });
       }
@@ -208,31 +304,8 @@ class Game {
         });
       }
     } else {
-      // Check if clicking on a harvestable tile in player territory
-      const harvestableCoords = getHarvestableTiles(this.state, 0);
-      const isHarvestable = harvestableCoords.some(c => coordEquals(c, coord));
-
       if (isHarvestable) {
-        // Track city levels before harvest to detect level-ups
-        const cityLevelsBefore = new Map<string, number>();
-        for (const [id, city] of this.state.cities) {
-          if (city.owner === 0) {
-            cityLevelsBefore.set(id, city.level);
-          }
-        }
-
-        this.state = executeAction(this.state, { type: 'harvest', targetCoord: coord });
-
-        // Check for level-ups
-        for (const [id, city] of this.state.cities) {
-          if (city.owner === 0) {
-            const prevLevel = cityLevelsBefore.get(id) || 1;
-            if (city.level > prevLevel) {
-              // City leveled up! Show bonus choice modal
-              this.showLevelUpModal(id, city.name, city.level);
-            }
-          }
-        }
+        this.showHarvestModal(coord);
       } else {
         // Deselect
         this.state = executeAction(this.state, { type: 'select' });
@@ -304,13 +377,30 @@ class Game {
     }
 
     tooltip.innerHTML = content;
-    tooltip.style.display = 'block';
     tooltip.style.left = `${e.clientX + 15}px`;
     tooltip.style.top = `${e.clientY + 15}px`;
+
+    if (this.tooltipHideTimer !== null) {
+      clearTimeout(this.tooltipHideTimer);
+      this.tooltipHideTimer = null;
+    }
+
+    if (!tooltip.classList.contains('visible')) {
+      tooltip.style.display = 'block';
+      requestAnimationFrame(() => {
+        tooltip.classList.add('visible');
+      });
+    }
   }
 
   private hideTooltip(): void {
-    document.getElementById('tooltip')!.style.display = 'none';
+    const tooltip = document.getElementById('tooltip')!;
+    if (this.tooltipHideTimer !== null) return;
+    tooltip.classList.remove('visible');
+    this.tooltipHideTimer = window.setTimeout(() => {
+      tooltip.style.display = 'none';
+      this.tooltipHideTimer = null;
+    }, 150);
   }
 
   private runAITurn(): void {
@@ -360,20 +450,20 @@ class Game {
       html += `<div style="margin:8px;padding:12px 20px;background:${owned ? '#2ecc71' : canAfford ? 'rgba(201,162,39,0.3)' : 'rgba(128,128,128,0.3)'};border:2px solid ${owned ? '#27ae60' : '#c9a227'};border-radius:8px;cursor:${owned ? 'default' : 'pointer'};" ${owned ? '' : `onclick="window.gameInstance.research('${id}')"`}>`;
       html += `<strong>${tech.name}</strong> (${tech.cost} Δρχ)<br>`;
       html += `<small>${tech.description}</small>`;
-      if (owned) html += '<br><small style="color:#fff;">(Researched)</small>';
+      if (owned) html += '<br><small>(Researched)</small>';
       html += '</div>';
     }
 
-    html += '<button class="btn" style="margin-top:20px;" onclick="this.parentElement.remove()">Close</button>';
+    html += '<button class="btn" style="margin-top:20px;" onclick="window.gameInstance.closeCurrentModal()">Close</button>';
     html += '</div>';
 
-    document.body.insertAdjacentHTML('beforeend', html);
+    this.openModal(html);
   }
 
   research(techId: string): void {
     this.state = executeAction(this.state, { type: 'research', techId: techId as any });
     this.updateHUD();
-    document.querySelector('[style*="z-index:200"]')?.remove();
+    this.closeModal();
     this.showTechModal();
   }
 
@@ -432,16 +522,16 @@ class Game {
       html += '</div>';
     }
 
-    html += '<button class="btn" style="margin-top:20px;" onclick="this.parentElement.remove(); window.gameInstance.deselectCity()">Close</button>';
+    html += '<button class="btn" style="margin-top:20px;" onclick="window.gameInstance.closeTrainModal()">Close</button>';
     html += '</div>';
 
-    document.body.insertAdjacentHTML('beforeend', html);
+    this.openModal(html);
   }
 
   trainUnit(cityId: string, unitType: 'hoplite' | 'peltast' | 'trireme'): void {
     this.state = executeAction(this.state, { type: 'train', cityId, unitType });
     this.updateHUD();
-    document.querySelector('[style*="z-index:200"]')?.remove();
+    this.closeModal();
   }
 
   deselectCity(): void {
@@ -483,7 +573,60 @@ class Game {
     }
 
     html += '</div>';
-    document.body.insertAdjacentHTML('beforeend', html);
+    this.openModal(html);
+  }
+
+  private showHarvestModal(coord: { q: number; r: number }): void {
+    const tile = this.state.tiles.get(`${coord.q},${coord.r}`);
+    if (!tile) return;
+
+    const info = HARVEST_COSTS[tile.terrain];
+    if (!info) return;
+
+    const player = this.state.players[0];
+    const canAfford = player.drachma >= info.cost;
+    const cardClass = canAfford ? 'modal-card--affordable' : 'modal-card--unaffordable';
+
+    let html = '<div class="modal-overlay">';
+    html += `<h2>${info.verb} ${info.name}?</h2>`;
+    html += `<p><span style="font-size:36px;">${info.icon}</span></p>`;
+    html += `<p>Cost: <strong>${info.cost} Drachma</strong> · Your Drachma: ${player.drachma}</p>`;
+
+    html += `<div class="modal-card ${cardClass}" ${canAfford ? `onclick="window.gameInstance.confirmHarvest(${coord.q}, ${coord.r})"` : ''}>`;
+    html += `<strong>${canAfford ? `${info.verb} for ${info.cost} 🪙` : 'Not enough Drachma'}</strong>`;
+    html += '</div>';
+
+    html += '<button class="btn" style="margin-top:12px;" onclick="window.gameInstance.closeCurrentModal()">Cancel</button>';
+    html += '</div>';
+
+    this.openModal(html);
+  }
+
+  confirmHarvest(q: number, r: number): void {
+    const coord = { q, r };
+    this.closeModal();
+
+    // Track city levels before harvest to detect level-ups
+    const cityLevelsBefore = new Map<string, number>();
+    for (const [id, city] of this.state.cities) {
+      if (city.owner === 0) {
+        cityLevelsBefore.set(id, city.level);
+      }
+    }
+
+    this.state = executeAction(this.state, { type: 'harvest', targetCoord: coord });
+
+    // Check for level-ups
+    for (const [id, city] of this.state.cities) {
+      if (city.owner === 0) {
+        const prevLevel = cityLevelsBefore.get(id) || 1;
+        if (city.level > prevLevel) {
+          this.showLevelUpModal(id, city.name, city.level);
+        }
+      }
+    }
+
+    this.updateHUD();
   }
 
   private getBonusOptionsForLevel(level: number): Array<{ id: string; name: string; icon: string; desc: string }> {
@@ -566,7 +709,7 @@ class Game {
         break;
     }
 
-    document.querySelector('[style*="z-index:200"]')?.remove();
+    this.closeModal();
     this.updateHUD();
   }
 
@@ -621,19 +764,10 @@ class Game {
 
   private updateHUD(): void {
     const player = this.state.players[0];
-    document.getElementById('drachma')!.textContent = player.drachma.toString();
+    const income = getPlayerIncome(this.state, 0);
+    const drachmaEl = document.getElementById('drachma')!;
+    drachmaEl.innerHTML = `${player.drachma} <span class="badge-income">+${income}</span>`;
     document.getElementById('turn-num')!.textContent = this.state.turn.toString();
-
-    // Calculate income per turn
-    let income = 0;
-    for (const city of this.state.cities.values()) {
-      if (city.owner !== 0) continue;
-      income += city.level;
-      if (city.isCapital) income += 1;
-      if (city.bonuses.includes('workshop')) income += 1;
-      if (player.techs.includes('philosophy')) income += 1;
-    }
-    document.getElementById('income')!.textContent = `(+${income})`;
 
     // Unit count
     const playerUnits = [...this.state.units.values()].filter(u => u.owner === 0);

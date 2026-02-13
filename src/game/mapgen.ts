@@ -75,26 +75,49 @@ export function generateMap(seed: string, radius: number): MapGenResult {
     tile.terrain = terrain;
   }
 
-  // Find valid starting positions (land tiles, not too close to center, opposite sides)
+  // Find valid starting positions on opposite sides with enough surrounding land
   const landTiles = [...tiles.values()].filter(t => t.terrain !== 'water');
 
-  // Player starts on left side (low q), AI on right side (high q)
+  // Count land tiles within radius 2 of a coord (measures how "mainland" a spot is)
+  const landScore = (coord: Coord): number => {
+    let count = 0;
+    for (let dq = -2; dq <= 2; dq++) {
+      for (let dr = -2; dr <= 2; dr++) {
+        const key = coordKey({ q: coord.q + dq, r: coord.r + dr });
+        const t = tiles.get(key);
+        if (t && t.terrain !== 'water') count++;
+      }
+    }
+    return count;
+  };
+
+  // Player on left half, AI on right half — no "far from center" constraint
   const midQ = Math.floor(mapSize / 2);
-  const playerCandidates = landTiles.filter(t =>
-    t.coord.q < midQ / 2 && coordDistance(t.coord, center) > radius / 2
-  );
-  const aiCandidates = landTiles.filter(t =>
-    t.coord.q > midQ + midQ / 2 && coordDistance(t.coord, center) > radius / 2
-  );
+  const minLandScore = 12; // At least ~half of 25 tiles in radius-2 should be land
 
-  // Ensure we have starting positions, fallback to any land if needed
-  const playerStart = playerCandidates.length > 0
-    ? rng.pick(playerCandidates).coord
-    : rng.pick(landTiles.filter(t => t.coord.q < midQ)).coord;
+  const playerCandidates = landTiles
+    .filter(t => t.coord.q < midQ && landScore(t.coord) >= minLandScore);
+  const aiCandidates = landTiles
+    .filter(t => t.coord.q > midQ && landScore(t.coord) >= minLandScore);
 
-  const aiStart = aiCandidates.length > 0
-    ? rng.pick(aiCandidates).coord
-    : rng.pick(landTiles.filter(t => t.coord.q > midQ)).coord;
+  // Pick the candidate with the best land score (most mainland-like)
+  const pickBest = (candidates: Tile[], fallback: Tile[]): Coord => {
+    const pool = candidates.length > 0 ? candidates : fallback;
+    // Sort by land score descending, then pick randomly from the top half
+    const scored = pool.map(t => ({ tile: t, score: landScore(t.coord) }));
+    scored.sort((a, b) => b.score - a.score);
+    const topHalf = scored.slice(0, Math.max(1, Math.ceil(scored.length / 2)));
+    return rng.pick(topHalf).tile.coord;
+  };
+
+  const playerStart = pickBest(
+    playerCandidates,
+    landTiles.filter(t => t.coord.q < midQ)
+  );
+  const aiStart = pickBest(
+    aiCandidates,
+    landTiles.filter(t => t.coord.q > midQ)
+  );
 
   // Ensure starting positions are plains (clear area for city)
   tiles.get(coordKey(playerStart))!.terrain = 'plains';

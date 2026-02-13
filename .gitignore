@@ -24,3 +24,8 @@ npm-debug.log*
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Playwright
+e2e/screenshots/
+e2e/test-results/
+test-results/
