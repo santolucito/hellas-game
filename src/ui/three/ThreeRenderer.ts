@@ -20,8 +20,8 @@ const COLORS = {
   forest: 0x5a7a44,
   hills: 0xc9a86c,
   water: 0x4a9bd9,
-  fog: 0xe8e8e8,
-  unexplored: 0x888888,
+  fog: 0xffffff,
+  unexplored: 0xdddddd,
   player: 0x5bc0eb,
   enemy: 0xf25c54,
   neutral: 0xb8b8b8,
@@ -411,7 +411,7 @@ export class ThreeRenderer {
         color = COLORS.unexplored;
       } else if (!isVisible) {
         // Dimmed version
-        color = this.dimColor(COLORS[terrain], 0.5);
+        color = this.dimColor(COLORS[terrain], 0.65);
       } else {
         color = COLORS[terrain];
       }
