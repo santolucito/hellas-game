@@ -104,7 +104,7 @@ export class ThreeRenderer {
       antialias: true,
       alpha: false
     });
-    this.renderer.setClearColor(0x0a0a1a);  // Dark space background
+    this.renderer.setClearColor(0x87ceeb);  // Light sky blue background
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     // Setup scene
@@ -145,18 +145,22 @@ export class ThreeRenderer {
     this.scene.add(this.unitsGroup);
     this.scene.add(this.fogGroup);
 
-    // Lighting - Natural daylight setup
-    // Hemisphere light: sky color (light blue) to ground color (soft green reflection)
-    const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x98d982, 0.6);
+    // Lighting - Bright daylight setup
+    // Ambient light for overall brightness
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    this.scene.add(ambientLight);
+
+    // Hemisphere light: sky blue to ground green
+    const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x98d982, 0.8);
     this.scene.add(hemisphereLight);
 
-    // Main sunlight - warm white for natural daylight feel
-    const sunLight = new THREE.DirectionalLight(0xfff4e5, 1.0);
+    // Main sunlight - bright warm white
+    const sunLight = new THREE.DirectionalLight(0xfff4e5, 1.2);
     sunLight.position.set(5, 10, 5);
     this.scene.add(sunLight);
 
-    // Subtle fill light from opposite side to soften shadows
-    const fillLight = new THREE.DirectionalLight(0xe8f4ff, 0.3);
+    // Fill light from opposite side
+    const fillLight = new THREE.DirectionalLight(0xe8f4ff, 0.5);
     fillLight.position.set(-5, 5, -5);
     this.scene.add(fillLight);
 
