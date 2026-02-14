@@ -179,7 +179,7 @@ export class ThreeRenderer {
   private setupControls(): void {
     // Mouse drag to pan
     this.canvas.addEventListener('mousedown', (e) => {
-      if (e.button === 1 || e.button === 2) {
+      if (e.button === 1 || e.button === 2 || (e.button === 0 && e.shiftKey)) {
         this.isPanning = true;
         this.lastPanX = e.clientX;
         this.lastPanY = e.clientY;
