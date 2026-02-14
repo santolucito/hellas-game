@@ -583,6 +583,7 @@ export class ThreeRenderer {
 
   private renderWheatStalks(q: number, r: number, x: number, baseY: number, z: number): void {
     const count = this.tileHash(q, r, 0) < 0.5 ? 2 : 3;
+    const time = this.animationFrame * 0.015;
 
     for (let i = 0; i < count; i++) {
       const stalkGroup = new THREE.Group();
@@ -592,9 +593,11 @@ export class ThreeRenderer {
       const oz = (this.tileHash(q, r, 20 + i) - 0.5) * 0.3;
       stalkGroup.position.set(x + ox, baseY, z + oz);
 
-      // Seeded lean angle
-      const leanX = (this.tileHash(q, r, 30 + i) - 0.5) * 0.4;
-      const leanZ = (this.tileHash(q, r, 40 + i) - 0.5) * 0.4;
+      // Seeded lean angle + gentle wind sway
+      const windPhase = this.tileHash(q, r, 60 + i) * Math.PI * 2;
+      const windSway = Math.sin(time + windPhase) * 0.06;
+      const leanX = (this.tileHash(q, r, 30 + i) - 0.5) * 0.3 + windSway;
+      const leanZ = (this.tileHash(q, r, 40 + i) - 0.5) * 0.3 + windSway * 0.5;
       stalkGroup.rotation.x = leanX;
       stalkGroup.rotation.z = leanZ;
 
@@ -699,25 +702,34 @@ export class ThreeRenderer {
   }
 
   private renderWaves(q: number, r: number, x: number, baseY: number, z: number): void {
-    const phaseOffset = this.tileHash(q, r, 0) * Math.PI * 2;
-    const bobY = Math.sin(this.animationFrame * 0.04 + phaseOffset) * 0.02;
+    const time = this.animationFrame * 0.04;
     const waveCount = this.tileHash(q, r, 1) < 0.5 ? 2 : 3;
 
     for (let i = 0; i < waveCount; i++) {
-      const waveGeom = new THREE.PlaneGeometry(0.3, 0.02);
-      const waveMat = new THREE.MeshBasicMaterial({
+      const phaseOffset = this.tileHash(q, r, 10 + i) * Math.PI * 2;
+      const waveZ = z + (i - 1) * 0.15;
+      const segments = 12;
+      const halfWidth = 0.2;
+
+      // Build sine-curve points
+      const points: THREE.Vector3[] = [];
+      for (let s = 0; s <= segments; s++) {
+        const t = s / segments;
+        const px = x - halfWidth + t * halfWidth * 2;
+        const py = baseY + 0.02 + Math.sin(time + phaseOffset + t * Math.PI * 2) * 0.015;
+        points.push(new THREE.Vector3(px, py, waveZ));
+      }
+
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeom = new THREE.TubeGeometry(curve, segments, 0.008, 4, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.3 - i * 0.08,
-        side: THREE.DoubleSide,
+        opacity: 0.35 - i * 0.08,
         depthWrite: false
       });
-      const wave = new THREE.Mesh(waveGeom, waveMat);
-      wave.rotation.x = -Math.PI / 2;
-      const waveZ = z + (i - 1) * 0.15;
-      const wavePhase = (i % 2 === 0 ? 1 : -1) * bobY;
-      wave.position.set(x, baseY + wavePhase + 0.02, waveZ);
-      this.decorationsGroup.add(wave);
+      const tube = new THREE.Mesh(tubeGeom, tubeMat);
+      this.decorationsGroup.add(tube);
     }
   }
 
