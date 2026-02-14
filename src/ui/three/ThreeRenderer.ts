@@ -1142,6 +1142,16 @@ export class ThreeRenderer {
     }
   }
 
+  coordToPixel(coord: { q: number; r: number }): { x: number; y: number } {
+    const worldPos = new THREE.Vector3(coord.q * TILE_SPACING, 0, coord.r * TILE_SPACING);
+    worldPos.project(this.camera);
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + ((worldPos.x + 1) / 2) * rect.width,
+      y: rect.top + ((-worldPos.y + 1) / 2) * rect.height
+    };
+  }
+
   getCoordAtPixel(px: number, py: number, _tiles?: Map<string, Tile>): Coord {
     // Convert pixel coords to normalized device coords
     const rect = this.canvas.getBoundingClientRect();
