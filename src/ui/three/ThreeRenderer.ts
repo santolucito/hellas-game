@@ -744,6 +744,11 @@ export class ThreeRenderer {
       roof.position.set(pos.x, y + 0.15 + 0.06, pos.z);
       roof.rotation.y = Math.PI / 4;
       this.citiesGroup.add(roof);
+
+      // Warm hearth glow
+      const light = new THREE.PointLight(0xffe0a0, 0.6, 2.5);
+      light.position.set(pos.x, y + 0.3, pos.z);
+      this.citiesGroup.add(light);
     } else {
       // --- OWNED CITY: Greek temple with team-colored roof ---
       const teamColor = city.owner === 0 ? COLORS.player : COLORS.enemy;
@@ -791,6 +796,12 @@ export class ThreeRenderer {
         orn.position.set(pos.x, y + 0.65, pos.z);
         this.citiesGroup.add(orn);
       }
+
+      // Team-tinted point light
+      const lightColor = city.owner === 0 ? 0xc0e8ff : 0xffc0b0;
+      const light = new THREE.PointLight(lightColor, 0.8, 3);
+      light.position.set(pos.x, y + 0.5, pos.z);
+      this.citiesGroup.add(light);
     }
   }
 
