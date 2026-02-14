@@ -1087,37 +1087,41 @@ export class ThreeRenderer {
 
   private createFogCloud(coord: Coord, terrain: Terrain): void {
     const pos = this.coordToPosition(coord, terrain);
-    const baseY = ELEVATION[terrain] + 0.3;
+    const baseY = ELEVATION[terrain] + 0.25;
+    const { q, r } = coord;
 
-    // Create multiple overlapping spheres for puffy cloud effect
-    const cloudPuffs = 4 + Math.floor(Math.random() * 3);
-    const time = this.animationFrame * 0.02;
-    const coordSeed = coord.q * 137 + coord.r * 311; // Deterministic seed per tile
+    // Fully deterministic — use tileHash for all randomness
+    const puffCount = 3 + Math.floor(this.tileHash(q, r, 100) * 3); // 3-5 puffs
+    const time = this.animationFrame * 0.008; // very slow bobbing
 
-    for (let i = 0; i < cloudPuffs; i++) {
-      const puffSeed = coordSeed + i * 73;
-      const size = 0.15 + (Math.sin(puffSeed) * 0.5 + 0.5) * 0.2;
+    for (let i = 0; i < puffCount; i++) {
+      const size = 0.18 + this.tileHash(q, r, 110 + i) * 0.14; // 0.18-0.32
 
-      // Offset each puff slightly, with gentle animation
-      const angle = (puffSeed % 628) / 100;
-      const dist = 0.15 + (Math.cos(puffSeed * 1.3) * 0.5 + 0.5) * 0.15;
-      const bobOffset = Math.sin(time + puffSeed * 0.1) * 0.05;
+      // Deterministic spread in a soft cluster
+      const angle = this.tileHash(q, r, 120 + i) * Math.PI * 2;
+      const dist = this.tileHash(q, r, 130 + i) * 0.2;
+      const bobPhase = this.tileHash(q, r, 140 + i) * Math.PI * 2;
+      const bobOffset = Math.sin(time + bobPhase) * 0.03;
 
       const puffX = pos.x + Math.cos(angle) * dist;
       const puffZ = pos.z + Math.sin(angle) * dist;
-      const puffY = baseY + (i * 0.08) + bobOffset;
+      const puffY = baseY + i * 0.04 + bobOffset;
 
-      const geometry = new THREE.SphereGeometry(size, 8, 6);
-      const material = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+      // Soft pastel tint — alternating warm white and cotton-candy pink
+      const tint = this.tileHash(q, r, 150 + i);
+      const color = tint < 0.5 ? 0xfff5f0 : tint < 0.8 ? 0xfff0f5 : 0xf0f5ff;
+
+      const geometry = new THREE.SphereGeometry(size, 10, 8);
+      const material = new THREE.MeshLambertMaterial({
+        color,
         transparent: true,
-        opacity: 0.7 - (i * 0.08),
+        opacity: 0.75 - (i * 0.06),
         depthWrite: false
       });
 
       const puff = new THREE.Mesh(geometry, material);
       puff.position.set(puffX, puffY, puffZ);
-      puff.scale.set(1.2, 0.6, 1.2); // Flatten clouds
+      puff.scale.set(1.3, 0.55, 1.3); // wide and flat — puffy cotton ball
 
       this.fogGroup.add(puff);
     }
